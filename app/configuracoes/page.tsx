@@ -1,3 +1,7 @@
+"use client";
+
+import type { FormEvent } from "react";
+
 const users = [
   { name: "Ana Beatriz", role: "Gestora de projetos", access: "Administrador" },
   { name: "João Pedro", role: "PMO", access: "Editor" },
@@ -5,6 +9,10 @@ const users = [
 ];
 
 export default function SettingsPage() {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <section className="rounded-[2rem] bg-[var(--panel)] p-6 shadow-sm ring-1 ring-black/5">
@@ -19,7 +27,7 @@ export default function SettingsPage() {
             Controle quem acessa o sistema e qual papel cada usuário possui.
           </p>
         </div>
-        <form className="space-y-4">
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             Nome completo
             <input
@@ -53,7 +61,7 @@ export default function SettingsPage() {
             </label>
           </div>
           <button
-            type="button"
+            type="submit"
             className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-medium text-white"
           >
             Cadastrar usuário

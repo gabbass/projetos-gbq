@@ -1,3 +1,7 @@
+"use client";
+
+import type { FormEvent } from "react";
+
 const projects = [
   { name: "Portal do cliente", sponsor: "Diretoria comercial", status: "Em andamento" },
   { name: "Aplicativo mobile", sponsor: "Produto", status: "Backlog" },
@@ -5,6 +9,10 @@ const projects = [
 ];
 
 export default function ProjectsPage() {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <section className="rounded-[2rem] bg-[var(--panel)] p-6 shadow-sm ring-1 ring-black/5">
@@ -19,7 +27,7 @@ export default function ProjectsPage() {
             Registre novos projetos com área responsável, prioridade e janela de entrega.
           </p>
         </div>
-        <form className="grid gap-4 md:grid-cols-2">
+        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
           <label className="space-y-2 text-sm font-medium text-slate-700">
             Nome do projeto
             <input
@@ -59,7 +67,7 @@ export default function ProjectsPage() {
           </label>
           <div className="md:col-span-2">
             <button
-              type="button"
+              type="submit"
               className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-medium text-white"
             >
               Salvar projeto
