@@ -58,7 +58,10 @@ export default function ProjectsPage() {
             />
           </label>
           <div className="md:col-span-2">
-            <button className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-medium text-white">
+            <button
+              type="button"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-slate-900 px-6 text-sm font-medium text-white"
+            >
               Salvar projeto
             </button>
           </div>
