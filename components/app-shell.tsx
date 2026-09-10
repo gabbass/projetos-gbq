@@ -38,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={`flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition ${
                     active
                       ? "bg-slate-900 text-white shadow-sm"
