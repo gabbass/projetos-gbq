@@ -29,7 +29,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <nav className="mt-5 space-y-2">
             {items.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                item.href === "/"
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
               return (
                 <Link

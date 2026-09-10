@@ -48,7 +48,7 @@ export default function Home() {
           {metrics.map((metric) => (
             <div
               key={metric.label}
-              className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm ring-1 ring-black/5"
+              className="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5"
             >
               <p className="text-sm text-slate-500">{metric.label}</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{metric.value}</p>
