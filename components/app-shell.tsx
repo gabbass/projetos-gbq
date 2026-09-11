@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import {
@@ -53,11 +54,21 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 const items = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/projetos", label: "Projetos", icon: FolderKanban, badge: "12" },
-  { href: "/configuracoes", label: "Equipe e acessos", icon: Users, badge: "27" },
+  { href: "/configuracoes", label: "Configurações", icon: Users },
   { href: "/diagnostico", label: "Diagnóstico", icon: DatabaseZap },
 ]
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  currentUser,
+  hasLogo,
+  brandingVersion,
+}: {
+  children: ReactNode
+  currentUser: { name: string; email: string; role: "admin" | "client" } | null
+  hasLogo: boolean
+  brandingVersion: string
+}) {
   const pathname = usePathname()
 
   if (pathname === "/login" || pathname === "/alterar-senha") return children
@@ -71,9 +82,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" tooltip="GBQ Projetos" asChild>
                   <Link href="/">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                      <Target className="size-4" />
-                    </span>
+                    {hasLogo ? (
+                      <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background">
+                        <Image src={`/api/branding/logo?v=${encodeURIComponent(brandingVersion)}`} alt="Logo GBQ" width={32} height={32} unoptimized className="size-8 object-contain" />
+                      </span>
+                    ) : (
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Target className="size-4" /></span>
+                    )}
                     <span className="grid flex-1 text-left leading-tight">
                       <span className="truncate font-heading font-semibold">GBQ Projetos</span>
                       <span className="truncate text-xs text-muted-foreground">Gestão à vista</span>
@@ -142,13 +157,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarMenuItem>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton size="lg" tooltip="Administrador">
+                    <SidebarMenuButton size="lg" tooltip={currentUser?.role === "admin" ? "Administrador" : "Cliente"}>
                       <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary">AD</AvatarFallback>
+                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary">{getInitials(currentUser?.name, currentUser?.email)}</AvatarFallback>
                       </Avatar>
                       <span className="grid flex-1 text-left leading-tight">
-                        <span className="truncate font-medium">Administrador</span>
-                        <span className="truncate text-xs text-muted-foreground">admin@gmail.com</span>
+                        <span className="truncate font-medium">{currentUser?.name || (currentUser?.role === "client" ? "Cliente" : "Administrador")}</span>
+                        <span className="truncate text-xs text-muted-foreground">{currentUser?.email}</span>
                       </span>
                       <ChevronDown className="ml-auto" />
                     </SidebarMenuButton>
@@ -184,12 +199,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Button variant="outline" size="icon" aria-label="Notificações">
                 <Bell />
               </Button>
-              <Button asChild aria-label="Novo projeto">
-                <Link href="/projetos">
-                  <Plus />
-                  <span className="hidden sm:inline">Novo projeto</span>
-                </Link>
-              </Button>
+              {currentUser?.role === "admin" ? (
+                <Button asChild aria-label="Novo projeto">
+                  <Link href="/projetos">
+                    <Plus />
+                    <span className="hidden sm:inline">Novo projeto</span>
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </header>
           <main className="flex flex-1 flex-col p-4 md:p-6 lg:p-8">{children}</main>
@@ -197,4 +214,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </SidebarProvider>
     </TooltipProvider>
   )
+}
+
+function getInitials(name?: string, email?: string) {
+  const source = name?.trim() || email || "Usuário"
+  return source.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")
 }
