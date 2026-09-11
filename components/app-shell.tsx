@@ -14,10 +14,21 @@ import {
   Settings,
   Target,
   Users,
+  LogOut,
 } from "lucide-react"
+
+import { logoutAction } from "@/app/auth-actions"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -48,6 +59,8 @@ const items = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+
+  if (pathname === "/login" || pathname === "/alterar-senha") return children
 
   return (
     <TooltipProvider>
@@ -127,16 +140,32 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton size="lg" tooltip="Gabriel Souza">
-                  <Avatar className="size-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-primary/10 text-primary">GS</AvatarFallback>
-                  </Avatar>
-                  <span className="grid flex-1 text-left leading-tight">
-                    <span className="truncate font-medium">Gabriel Souza</span>
-                    <span className="truncate text-xs text-muted-foreground">Administrador</span>
-                  </span>
-                  <ChevronDown className="ml-auto" />
-                </SidebarMenuButton>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton size="lg" tooltip="Administrador">
+                      <Avatar className="size-8 rounded-lg">
+                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary">AD</AvatarFallback>
+                      </Avatar>
+                      <span className="grid flex-1 text-left leading-tight">
+                        <span className="truncate font-medium">Administrador</span>
+                        <span className="truncate text-xs text-muted-foreground">admin@gmail.com</span>
+                      </span>
+                      <ChevronDown className="ml-auto" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="end" className="w-56">
+                    <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <form action={logoutAction}>
+                      <DropdownMenuItem asChild>
+                        <button type="submit" className="w-full">
+                          <LogOut />
+                          Sair
+                        </button>
+                      </DropdownMenuItem>
+                    </form>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarFooter>
