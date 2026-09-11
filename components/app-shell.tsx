@@ -6,6 +6,7 @@ import type { ReactNode } from "react"
 import {
   Bell,
   ChevronDown,
+  DatabaseZap,
   FolderKanban,
   LayoutDashboard,
   Plus,
@@ -42,6 +43,7 @@ const items = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/projetos", label: "Projetos", icon: FolderKanban, badge: "12" },
   { href: "/configuracoes", label: "Equipe e acessos", icon: Users, badge: "27" },
+  { href: "/diagnostico", label: "Diagnóstico", icon: DatabaseZap },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
