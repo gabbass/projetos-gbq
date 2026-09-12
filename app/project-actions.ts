@@ -3,23 +3,30 @@
 import { revalidatePath } from "next/cache"
 
 import {
+  addChatMessage,
   createProject,
+  createSubtask,
   createTask,
   deleteProject,
   deleteTask,
+  markConversationRead,
   moveTask,
   updateProject,
+  updateSubtaskStatus,
   updateTask,
+  type ChatTargetType,
   type ProjectPriority,
   type TaskStatus,
 } from "@/lib/projects/database"
-import { requireAdministrator } from "@/lib/auth/session"
+import { requireAdministrator, requireCurrentUser } from "@/lib/auth/session"
 
 export type ProjectActionState = { status?: "success" | "error"; message?: string }
 
 const priorities = new Set<ProjectPriority>(["high", "medium", "low"])
 const statuses = new Set<TaskStatus>(["todo", "in_progress", "waiting", "done"])
 const uuidPattern = /^[0-9a-f-]{36}$/i
+const chatTargetTypes = new Set<ChatTargetType>(["project", "task"])
+const maxAttachmentSize = 10 * 1024 * 1024
 
 function text(formData: FormData, name: string, maxLength: number) {
   return String(formData.get(name) ?? "").trim().slice(0, maxLength)
@@ -171,5 +178,65 @@ export async function deleteTaskAction(taskId: string, _state: ProjectActionStat
   } catch (error) {
     console.error("Falha ao excluir tarefa:", error)
     return { status: "error", message: errorMessage(error) }
+  }
+}
+
+export async function createSubtaskAction(parentTaskId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
+  const user = await requireAdministrator()
+  if (!uuidPattern.test(parentTaskId)) return { status: "error", message: "Tarefa inválida." }
+  const title = text(formData, "subtaskTitle", 160)
+  if (title.length < 2) return { status: "error", message: "Informe o título da subtarefa." }
+  try {
+    await createSubtask(parentTaskId, title, user.id)
+    refreshProjectViews()
+    return { status: "success", message: "Subtarefa criada." }
+  } catch (error) {
+    console.error("Falha ao criar subtarefa:", error)
+    return { status: "error", message: errorMessage(error) }
+  }
+}
+
+export async function updateSubtaskStatusAction(subtaskId: string, status: TaskStatus) {
+  await requireAdministrator()
+  if (!uuidPattern.test(subtaskId) || !statuses.has(status)) return
+  await updateSubtaskStatus(subtaskId, status)
+  refreshProjectViews()
+}
+
+export async function sendChatMessageAction(targetType: ChatTargetType, targetId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
+  const user = await requireCurrentUser()
+  if (!chatTargetTypes.has(targetType) || !uuidPattern.test(targetId)) return { status: "error", message: "Conversa inválida." }
+  const body = text(formData, "message", 4000)
+  const fileValue = formData.get("attachment")
+  const file = fileValue instanceof File && fileValue.size > 0 ? fileValue : null
+  if (!body && !file) return { status: "error", message: "Escreva uma mensagem ou selecione um arquivo." }
+  if (file && file.size > maxAttachmentSize) return { status: "error", message: "O arquivo deve ter no máximo 10 MB." }
+  try {
+    await addChatMessage(user, {
+      targetType,
+      targetId,
+      body,
+      attachment: file ? {
+        name: file.name.slice(0, 240),
+        type: file.type.slice(0, 120) || "application/octet-stream",
+        size: file.size,
+        data: Buffer.from(await file.arrayBuffer()),
+      } : undefined,
+    })
+    refreshProjectViews()
+    return { status: "success", message: "Mensagem enviada." }
+  } catch (error) {
+    console.error("Falha ao enviar mensagem:", error)
+    return { status: "error", message: "Não foi possível enviar a mensagem." }
+  }
+}
+
+export async function markChatReadAction(targetType: ChatTargetType, targetId: string) {
+  const user = await requireCurrentUser()
+  if (!chatTargetTypes.has(targetType) || !uuidPattern.test(targetId)) return
+  try {
+    await markConversationRead(user, targetType, targetId)
+  } catch (error) {
+    console.error("Falha ao marcar conversa como lida:", error)
   }
 }

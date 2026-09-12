@@ -13,6 +13,7 @@ export type AuthUser = {
   terms_version: string | null
   security_policy_accepted_at: Date | null
   security_policy_version: string | null
+  onboarding_completed_at: Date | null
   role: UserRole
   area: string
   theme: "light" | "dark"
@@ -61,6 +62,7 @@ async function initializeAuth() {
       terms_version text,
       security_policy_accepted_at timestamptz,
       security_policy_version text,
+      onboarding_completed_at timestamptz DEFAULT now(),
       role text NOT NULL DEFAULT 'admin',
       area text NOT NULL DEFAULT '',
       theme text NOT NULL DEFAULT 'light',
@@ -78,6 +80,8 @@ async function initializeAuth() {
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS terms_version text;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_accepted_at timestamptz;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_version text;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamptz DEFAULT now();
+    UPDATE app_users SET onboarding_completed_at = NULL WHERE must_change_password = true;
     UPDATE app_users SET theme = 'light' WHERE theme NOT IN ('light', 'dark');
     UPDATE app_users SET role = 'client' WHERE role NOT IN ('admin', 'client');
     UPDATE app_users SET name = 'Administrador' WHERE name = '' AND lower(email) = 'admin@gmail.com';
@@ -119,8 +123,8 @@ async function initializeAuth() {
 
   const initialPasswordHash = await hashPassword("12345678")
   await pool.query(
-    `INSERT INTO app_users (name, email, password_hash, must_change_password, role, area)
-     VALUES ('Administrador', $1, $2, true, 'admin', 'Administração')
+    `INSERT INTO app_users (name, email, password_hash, must_change_password, onboarding_completed_at, role, area)
+     VALUES ('Administrador', $1, $2, true, NULL, 'admin', 'Administração')
      ON CONFLICT (email) DO NOTHING`,
     ["admin@gmail.com", initialPasswordHash],
   )
@@ -139,7 +143,8 @@ export async function findUserByEmail(email: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
     `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
+            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            role, area, theme, created_at, updated_at
      FROM app_users WHERE lower(email) = lower($1) LIMIT 1`,
     [email],
   )
@@ -151,7 +156,8 @@ export async function findUserById(userId: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
     `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
+            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            role, area, theme, created_at, updated_at
      FROM app_users WHERE id = $1 LIMIT 1`,
     [userId],
   )
@@ -163,7 +169,8 @@ export async function listUsers() {
   await ensureAuthDatabase()
   const result = await getPool().query<Omit<AuthUser, "password_hash">>(
     `SELECT id, name, email, phone, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
+            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            role, area, theme, created_at, updated_at
      FROM app_users
      ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, lower(name), lower(email)`,
   )
@@ -180,8 +187,8 @@ export async function createUser(input: {
 }) {
   await ensureAuthDatabase()
   await getPool().query(
-    `INSERT INTO app_users (name, email, phone, password_hash, must_change_password, role, area)
-     VALUES ($1, $2, $3, $4, true, $5, $6)`,
+    `INSERT INTO app_users (name, email, phone, password_hash, must_change_password, onboarding_completed_at, role, area)
+     VALUES ($1, $2, $3, $4, true, NULL, $5, $6)`,
     [input.name, input.email, input.phone, input.passwordHash, input.role, input.area],
   )
 }
@@ -353,4 +360,15 @@ export async function completeFirstAccess(userId: string, passwordHash: string, 
     [passwordHash, legalVersion, userId],
   )
   if (result.rowCount !== 1) throw new Error("FIRST_ACCESS_ALREADY_COMPLETE")
+}
+
+export async function completeOnboarding(userId: string) {
+  await ensureAuthDatabase()
+  const result = await getPool().query(
+    `UPDATE app_users
+     SET onboarding_completed_at = COALESCE(onboarding_completed_at, now()), updated_at = now()
+     WHERE id = $1 AND must_change_password = false`,
+    [userId],
+  )
+  if (result.rowCount !== 1) throw new Error("ONBOARDING_NOT_AVAILABLE")
 }

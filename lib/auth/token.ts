@@ -7,6 +7,7 @@ export type SessionPayload = {
   userId: string
   email: string
   mustChangePassword: boolean
+  onboardingCompleted: boolean
   expiresAt: number
 }
 

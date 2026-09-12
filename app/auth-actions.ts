@@ -3,7 +3,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { completeFirstAccess, findUserByEmail, findUserById } from "@/lib/auth/database"
+import { completeFirstAccess, completeOnboarding, findUserByEmail, findUserById } from "@/lib/auth/database"
 import { hashPassword, verifyPassword } from "@/lib/auth/password"
 import { LEGAL_VERSION } from "@/lib/legal"
 import {
@@ -15,12 +15,13 @@ import {
 
 export type AuthActionState = { error?: string }
 
-async function setSession(user: { id: string; email: string; mustChangePassword: boolean }) {
+async function setSession(user: { id: string; email: string; mustChangePassword: boolean; onboardingCompleted: boolean }) {
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, createSessionToken({
     userId: user.id,
     email: user.email,
     mustChangePassword: user.mustChangePassword,
+    onboardingCompleted: user.onboardingCompleted,
   }), {
     httpOnly: true,
     sameSite: "lax",
@@ -47,9 +48,10 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
       id: user.id,
       email: user.email,
       mustChangePassword: user.must_change_password,
+      onboardingCompleted: Boolean(user.onboarding_completed_at),
     })
 
-    redirect(user.must_change_password ? "/alterar-senha" : "/")
+    redirect(user.must_change_password ? "/alterar-senha" : user.onboarding_completed_at ? "/" : "/onboarding")
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error
     console.error("Falha no login:", error)
@@ -84,12 +86,35 @@ export async function changePasswordAction(_state: AuthActionState, formData: Fo
       id: session.userId,
       email: session.email,
       mustChangePassword: false,
+      onboardingCompleted: false,
     })
-    redirect("/")
+    redirect("/onboarding")
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error
     console.error("Falha ao alterar senha:", error)
     return { error: "Não foi possível salvar a nova senha. Tente novamente." }
+  }
+}
+
+export async function completeOnboardingAction() {
+  const cookieStore = await cookies()
+  const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value)
+  if (!session) redirect("/login")
+  if (session.mustChangePassword) redirect("/alterar-senha")
+
+  try {
+    await completeOnboarding(session.userId)
+    await setSession({
+      id: session.userId,
+      email: session.email,
+      mustChangePassword: false,
+      onboardingCompleted: true,
+    })
+    redirect("/")
+  } catch (error) {
+    if (error && typeof error === "object" && "digest" in error) throw error
+    console.error("Falha ao concluir onboarding:", error)
+    redirect("/onboarding?erro=conclusao")
   }
 }
 

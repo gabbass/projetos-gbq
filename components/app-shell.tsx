@@ -74,7 +74,7 @@ export function AppShell({
 }) {
   const pathname = usePathname()
 
-  if (pathname === "/login" || pathname === "/alterar-senha") return children
+  if (pathname === "/login" || pathname === "/alterar-senha" || pathname === "/onboarding") return children
 
   return (
     <TooltipProvider>
