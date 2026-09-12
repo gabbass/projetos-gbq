@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import {
   Bell,
+  ChartNoAxesColumnIncreasing,
   ChevronDown,
   DatabaseZap,
   FolderKanban,
@@ -42,7 +43,6 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -53,7 +53,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 const items = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
-  { href: "/projetos", label: "Projetos", icon: FolderKanban, badge: "12" },
+  { href: "/projetos", label: "Projetos", icon: FolderKanban },
+  { href: "/progresso", label: "Progresso", icon: ChartNoAxesColumnIncreasing },
   { href: "/equipe", label: "Equipe e acessos", icon: Users },
   { href: "/diagnostico", label: "Diagnóstico", icon: DatabaseZap },
 ]
@@ -119,7 +120,6 @@ export function AppShell({
                             <span>{item.label}</span>
                           </Link>
                         </SidebarMenuButton>
-                        {item.badge ? <SidebarMenuBadge>{item.badge}</SidebarMenuBadge> : null}
                       </SidebarMenuItem>
                     )
                   })}
@@ -127,25 +127,6 @@ export function AppShell({
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Projetos recentes</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {[
-                    ["Portal do cliente", "bg-blue-500"],
-                    ["Aplicativo mobile", "bg-amber-500"],
-                    ["Dashboard executivo", "bg-emerald-500"],
-                  ].map(([label, color]) => (
-                    <SidebarMenuItem key={label}>
-                      <SidebarMenuButton tooltip={label}>
-                        <span className={`size-2.5 shrink-0 rounded-full ${color}`} />
-                        <span>{label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
           </SidebarContent>
 
           <SidebarFooter>
@@ -197,7 +178,7 @@ export function AppShell({
             <Separator orientation="vertical" className="h-5" />
             <div className="relative hidden w-full max-w-sm sm:block">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input aria-label="Buscar" className="pl-9" placeholder="Buscar projetos, pessoas..." />
+              <Input aria-label="Buscar" className="pl-9" placeholder="Buscar projetos, tarefas..." />
             </div>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="icon" aria-label="Notificações">

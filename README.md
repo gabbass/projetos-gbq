@@ -2,8 +2,9 @@
 
 Sistema de controle de projetos construído com Next.js, com:
 
-- kanban como primeira página
-- cadastro de projetos
+- Kanban por projeto com tarefas em A fazer, Em andamento, Aguardando e Concluído
+- CRUD de projetos e tarefas persistido no PostgreSQL
+- progresso dos projetos calculado pela proporção de tarefas concluídas
 - configurações para cadastro de usuários
 
 ## Executar localmente
@@ -25,4 +26,4 @@ pnpm dev
 - E-mail: `admin@gmail.com`
 - Senha temporária: `12345678`
 
-A tabela de usuários e o primeiro administrador são criados de forma idempotente no primeiro login. O sistema exige a definição de uma nova senha antes de liberar o painel. As senhas são armazenadas com `scrypt`, nunca em texto puro.
+As tabelas de usuários, projetos e tarefas são criadas de forma idempotente no primeiro uso. O primeiro administrador é criado no primeiro login. O sistema exige a definição de uma nova senha antes de liberar o painel. As senhas são armazenadas com `scrypt`, nunca em texto puro.
