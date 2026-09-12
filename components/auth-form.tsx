@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react"
 import { useFormStatus } from "react-dom"
-import { Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail } from "lucide-react"
+import { BookOpenCheck, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail } from "lucide-react"
 
 import {
   changePasswordAction,
@@ -10,16 +10,19 @@ import {
   type AuthActionState,
 } from "@/app/auth-actions"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LegalDocumentDialog } from "@/components/legal-documents"
+import { LEGAL_VERSION } from "@/lib/legal"
 
 const initialState: AuthActionState = {}
 
-function SubmitButton({ children }: { children: React.ReactNode }) {
+function SubmitButton({ children, disabled = false }: { children: React.ReactNode; disabled?: boolean }) {
   const { pending } = useFormStatus()
 
   return (
-    <Button type="submit" size="lg" className="mt-1 w-full" disabled={pending}>
+    <Button type="submit" size="lg" className="mt-1 w-full" disabled={pending || disabled}>
       {pending ? <LoaderCircle className="animate-spin" /> : <LogIn />}
       {pending ? "Aguarde..." : children}
     </Button>
@@ -92,9 +95,9 @@ export function LoginForm() {
       <PasswordField
         id="password"
         name="password"
-        label="Senha"
+        label="Senha ou celular no primeiro acesso"
         autoComplete="current-password"
-        placeholder="Digite sua senha"
+        placeholder="Digite sua senha ou celular com DDD"
       />
       {state.error ? (
         <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -108,6 +111,10 @@ export function LoginForm() {
 
 export function ChangePasswordForm() {
   const [state, action] = useActionState(changePasswordAction, initialState)
+  const [openedTerms, setOpenedTerms] = useState(false)
+  const [openedSecurityPolicy, setOpenedSecurityPolicy] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedSecurityPolicy, setAcceptedSecurityPolicy] = useState(false)
 
   return (
     <form action={action} className="grid gap-5">
@@ -125,12 +132,85 @@ export function ChangePasswordForm() {
         autoComplete="new-password"
         placeholder="Digite novamente"
       />
+      <div className="rounded-2xl border bg-muted/30 p-4">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <BookOpenCheck className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">Leitura e aceite obrigatórios</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Abra os dois documentos para liberar as confirmações.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="accept-terms"
+              name="acceptTerms"
+              value={LEGAL_VERSION}
+              checked={acceptedTerms}
+              onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+              disabled={!openedTerms}
+              required
+              aria-describedby="accept-terms-hint"
+              className="mt-0.5"
+            />
+            <div className="grid gap-1">
+              <div className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
+                <Label htmlFor="accept-terms" className="text-sm leading-5">Li e aceito os</Label>
+                <LegalDocumentDialog
+                  document="terms"
+                  onOpenChange={(open) => open && setOpenedTerms(true)}
+                  trigger={
+                    <Button type="button" variant="link" className="h-auto p-0 align-baseline text-sm">
+                      Termos de Uso
+                    </Button>
+                  }
+                />
+              </div>
+              {!openedTerms ? <p id="accept-terms-hint" className="text-xs text-muted-foreground">Leia o documento para habilitar.</p> : null}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="accept-security-policy"
+              name="acceptSecurityPolicy"
+              value={LEGAL_VERSION}
+              checked={acceptedSecurityPolicy}
+              onCheckedChange={(checked) => setAcceptedSecurityPolicy(checked === true)}
+              disabled={!openedSecurityPolicy}
+              required
+              aria-describedby="accept-security-policy-hint"
+              className="mt-0.5"
+            />
+            <div className="grid gap-1">
+              <div className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
+                <Label htmlFor="accept-security-policy" className="text-sm leading-5">Li e aceito a</Label>
+                <LegalDocumentDialog
+                  document="security"
+                  onOpenChange={(open) => open && setOpenedSecurityPolicy(true)}
+                  trigger={
+                    <Button type="button" variant="link" className="h-auto p-0 align-baseline text-sm">
+                      Política de Segurança
+                    </Button>
+                  }
+                />
+              </div>
+              {!openedSecurityPolicy ? <p id="accept-security-policy-hint" className="text-xs text-muted-foreground">Leia o documento para habilitar.</p> : null}
+            </div>
+          </div>
+        </div>
+      </div>
       {state.error ? (
         <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {state.error}
         </p>
       ) : null}
-      <SubmitButton>Salvar nova senha</SubmitButton>
+      <SubmitButton disabled={!acceptedTerms || !acceptedSecurityPolicy}>Salvar e continuar</SubmitButton>
     </form>
   )
 }

@@ -6,8 +6,13 @@ export type AuthUser = {
   id: string
   name: string
   email: string
+  phone: string
   password_hash: string
   must_change_password: boolean
+  terms_accepted_at: Date | null
+  terms_version: string | null
+  security_policy_accepted_at: Date | null
+  security_policy_version: string | null
   role: UserRole
   area: string
   theme: "light" | "dark"
@@ -49,8 +54,13 @@ async function initializeAuth() {
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       name text NOT NULL DEFAULT '',
       email text NOT NULL UNIQUE,
+      phone text NOT NULL DEFAULT '',
       password_hash text NOT NULL,
       must_change_password boolean NOT NULL DEFAULT true,
+      terms_accepted_at timestamptz,
+      terms_version text,
+      security_policy_accepted_at timestamptz,
+      security_policy_version text,
       role text NOT NULL DEFAULT 'admin',
       area text NOT NULL DEFAULT '',
       theme text NOT NULL DEFAULT 'light',
@@ -61,8 +71,13 @@ async function initializeAuth() {
 
   await pool.query(`
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '';
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS phone text NOT NULL DEFAULT '';
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS area text NOT NULL DEFAULT '';
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS theme text NOT NULL DEFAULT 'light';
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS terms_version text;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_accepted_at timestamptz;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_version text;
     UPDATE app_users SET theme = 'light' WHERE theme NOT IN ('light', 'dark');
     UPDATE app_users SET role = 'client' WHERE role NOT IN ('admin', 'client');
     UPDATE app_users SET name = 'Administrador' WHERE name = '' AND lower(email) = 'admin@gmail.com';
@@ -123,7 +138,8 @@ export async function ensureAuthDatabase() {
 export async function findUserByEmail(email: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
-    `SELECT id, name, email, password_hash, must_change_password, role, area, theme, created_at, updated_at
+    `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
+            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
      FROM app_users WHERE lower(email) = lower($1) LIMIT 1`,
     [email],
   )
@@ -134,7 +150,8 @@ export async function findUserByEmail(email: string) {
 export async function findUserById(userId: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
-    `SELECT id, name, email, password_hash, must_change_password, role, area, theme, created_at, updated_at
+    `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
+            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
      FROM app_users WHERE id = $1 LIMIT 1`,
     [userId],
   )
@@ -145,7 +162,8 @@ export async function findUserById(userId: string) {
 export async function listUsers() {
   await ensureAuthDatabase()
   const result = await getPool().query<Omit<AuthUser, "password_hash">>(
-    `SELECT id, name, email, must_change_password, role, area, theme, created_at, updated_at
+    `SELECT id, name, email, phone, must_change_password, terms_accepted_at, terms_version,
+            security_policy_accepted_at, security_policy_version, role, area, theme, created_at, updated_at
      FROM app_users
      ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, lower(name), lower(email)`,
   )
@@ -155,21 +173,24 @@ export async function listUsers() {
 export async function createUser(input: {
   name: string
   email: string
+  phone: string
   passwordHash: string
   role: UserRole
   area: string
 }) {
   await ensureAuthDatabase()
   await getPool().query(
-    `INSERT INTO app_users (name, email, password_hash, must_change_password, role, area)
-     VALUES ($1, $2, $3, true, $4, $5)`,
-    [input.name, input.email, input.passwordHash, input.role, input.area],
+    `INSERT INTO app_users (name, email, phone, password_hash, must_change_password, role, area)
+     VALUES ($1, $2, $3, $4, true, $5, $6)`,
+    [input.name, input.email, input.phone, input.passwordHash, input.role, input.area],
   )
 }
 
 export async function updateUser(userId: string, input: {
   name: string
   email: string
+  phone: string
+  accessKeyHash: string
   role: UserRole
   area: string
 }) {
@@ -189,10 +210,28 @@ export async function updateUser(userId: string, input: {
       )
       if (Number(admins.rows[0]?.count ?? 0) <= 1) throw new Error("LAST_ADMIN")
     }
+    if (current.rows[0].role !== input.role) {
+      const projectLinksReady = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'projects'
+           AND column_name IN ('client_user_id', 'responsible_user_id')`,
+      )
+      if (Number(projectLinksReady.rows[0]?.count ?? 0) === 2) {
+        const linkedProject = await client.query(
+          input.role === "client"
+            ? `SELECT 1 FROM projects WHERE responsible_user_id = $1 LIMIT 1`
+            : `SELECT 1 FROM projects WHERE client_user_id = $1 LIMIT 1`,
+          [userId],
+        )
+        if (linkedProject.rowCount) throw new Error("ROLE_IN_USE")
+      }
+    }
     await client.query(
-      `UPDATE app_users SET name = $1, email = $2, role = $3, area = $4, updated_at = now()
-       WHERE id = $5`,
-      [input.name, input.email, input.role, input.area, userId],
+      `UPDATE app_users SET name = $1, email = $2, phone = $3,
+         password_hash = CASE WHEN must_change_password THEN $4 ELSE password_hash END,
+         role = $5, area = $6, updated_at = now()
+       WHERE id = $7`,
+      [input.name, input.email, input.phone, input.accessKeyHash, input.role, input.area, userId],
     )
     await client.query("COMMIT")
   } catch (error) {
@@ -201,6 +240,15 @@ export async function updateUser(userId: string, input: {
   } finally {
     client.release()
   }
+}
+
+export async function updateOwnProfile(userId: string, input: { name: string; email: string; phone: string }) {
+  await ensureAuthDatabase()
+  const result = await getPool().query(
+    `UPDATE app_users SET name = $1, email = $2, phone = $3, updated_at = now() WHERE id = $4`,
+    [input.name, input.email, input.phone, userId],
+  )
+  if (result.rowCount !== 1) throw new Error("USER_NOT_FOUND")
 }
 
 export async function deleteUser(userId: string) {
@@ -219,6 +267,18 @@ export async function deleteUser(userId: string) {
         `SELECT count(*)::text AS count FROM app_users WHERE role = 'admin'`,
       )
       if (Number(admins.rows[0]?.count ?? 0) <= 1) throw new Error("LAST_ADMIN")
+    }
+    const projectLinksReady = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = 'projects'
+         AND column_name IN ('client_user_id', 'responsible_user_id')`,
+    )
+    if (Number(projectLinksReady.rows[0]?.count ?? 0) === 2) {
+      const linkedProject = await client.query(
+        `SELECT 1 FROM projects WHERE client_user_id = $1 OR responsible_user_id = $1 LIMIT 1`,
+        [userId],
+      )
+      if (linkedProject.rowCount) throw new Error("USER_IN_PROJECT")
     }
     await client.query(`DELETE FROM app_users WHERE id = $1`, [userId])
     await client.query("COMMIT")
@@ -278,12 +338,19 @@ export async function getBrandingAsset(asset: "logo" | "favicon") {
   return result.rows[0] ?? null
 }
 
-export async function updateUserPassword(userId: string, passwordHash: string) {
+export async function completeFirstAccess(userId: string, passwordHash: string, legalVersion: string) {
   await ensureAuthDatabase()
-  await getPool().query(
+  const result = await getPool().query(
     `UPDATE app_users
-     SET password_hash = $1, must_change_password = false, updated_at = now()
-     WHERE id = $2`,
-    [passwordHash, userId],
+     SET password_hash = $1,
+         must_change_password = false,
+         terms_accepted_at = now(),
+         terms_version = $2,
+         security_policy_accepted_at = now(),
+         security_policy_version = $2,
+         updated_at = now()
+     WHERE id = $3 AND must_change_password = true`,
+    [passwordHash, legalVersion, userId],
   )
+  if (result.rowCount !== 1) throw new Error("FIRST_ACCESS_ALREADY_COMPLETE")
 }

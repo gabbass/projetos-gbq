@@ -13,7 +13,7 @@ import {
   type ProjectPriority,
   type TaskStatus,
 } from "@/lib/projects/database"
-import { requireCurrentUser } from "@/lib/auth/session"
+import { requireAdministrator } from "@/lib/auth/session"
 
 export type ProjectActionState = { status?: "success" | "error"; message?: string }
 
@@ -39,6 +39,7 @@ function refreshProjectViews() {
 function errorMessage(error: unknown) {
   if (error instanceof Error && error.message === "PROJECT_NOT_FOUND") return "Esse projeto não existe mais."
   if (error instanceof Error && error.message === "TASK_NOT_FOUND") return "Essa tarefa não existe mais."
+  if (error instanceof Error && error.message === "INVALID_PROJECT_PARTICIPANTS") return "Selecione um cliente e um responsável válidos."
   if (error && typeof error === "object" && "code" in error && error.code === "23503") return "O projeto selecionado não existe mais."
   return "Não foi possível concluir a operação. Tente novamente."
 }
@@ -46,14 +47,17 @@ function errorMessage(error: unknown) {
 function projectInput(formData: FormData) {
   const name = text(formData, "name", 120)
   const area = text(formData, "area", 100)
-  const owner = text(formData, "owner", 100)
+  const clientUserId = text(formData, "clientUserId", 36)
+  const responsibleUserId = text(formData, "responsibleUserId", 36)
   const priority = text(formData, "priority", 10) as ProjectPriority
   const objective = text(formData, "objective", 1500)
   if (name.length < 2) return { error: "Informe o nome do projeto." } as const
   if (!area) return { error: "Informe a área responsável." } as const
-  if (!owner) return { error: "Informe o responsável." } as const
+  if (!uuidPattern.test(clientUserId)) return { error: "Selecione o cliente do projeto." } as const
+  if (!uuidPattern.test(responsibleUserId)) return { error: "Selecione o responsável pelo projeto." } as const
+  if (clientUserId === responsibleUserId) return { error: "Cliente e responsável devem ser pessoas diferentes." } as const
   if (!priorities.has(priority)) return { error: "Selecione uma prioridade válida." } as const
-  return { value: { name, area, owner, priority, deadline: nullableDate(formData, "deadline"), objective } } as const
+  return { value: { name, area, clientUserId, responsibleUserId, priority, deadline: nullableDate(formData, "deadline"), objective } } as const
 }
 
 function taskInput(formData: FormData) {
@@ -70,7 +74,7 @@ function taskInput(formData: FormData) {
 }
 
 export async function createProjectAction(_state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  const user = await requireCurrentUser()
+  const user = await requireAdministrator()
   const input = projectInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
   try {
@@ -84,7 +88,7 @@ export async function createProjectAction(_state: ProjectActionState, formData: 
 }
 
 export async function updateProjectAction(projectId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  await requireCurrentUser()
+  await requireAdministrator()
   if (!uuidPattern.test(projectId)) return { status: "error", message: "Projeto inválido." }
   const input = projectInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
@@ -100,7 +104,7 @@ export async function updateProjectAction(projectId: string, _state: ProjectActi
 
 export async function deleteProjectAction(projectId: string, _state: ProjectActionState, _formData: FormData): Promise<ProjectActionState> {
   void [_state, _formData]
-  await requireCurrentUser()
+  await requireAdministrator()
   if (!uuidPattern.test(projectId)) return { status: "error", message: "Projeto inválido." }
   try {
     await deleteProject(projectId)
@@ -113,7 +117,7 @@ export async function deleteProjectAction(projectId: string, _state: ProjectActi
 }
 
 export async function createTaskAction(_state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  const user = await requireCurrentUser()
+  const user = await requireAdministrator()
   const projectId = text(formData, "projectId", 36)
   if (!uuidPattern.test(projectId)) return { status: "error", message: "Selecione um projeto válido." }
   const input = taskInput(formData)
@@ -129,7 +133,7 @@ export async function createTaskAction(_state: ProjectActionState, formData: For
 }
 
 export async function updateTaskAction(taskId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  await requireCurrentUser()
+  await requireAdministrator()
   if (!uuidPattern.test(taskId)) return { status: "error", message: "Tarefa inválida." }
   const input = taskInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
@@ -144,7 +148,7 @@ export async function updateTaskAction(taskId: string, _state: ProjectActionStat
 }
 
 export async function moveTaskAction(taskId: string, status: TaskStatus): Promise<ProjectActionState> {
-  await requireCurrentUser()
+  await requireAdministrator()
   if (!uuidPattern.test(taskId) || !statuses.has(status)) return { status: "error", message: "Movimentação inválida." }
   try {
     await moveTask(taskId, status)
@@ -158,7 +162,7 @@ export async function moveTaskAction(taskId: string, status: TaskStatus): Promis
 
 export async function deleteTaskAction(taskId: string, _state: ProjectActionState, _formData: FormData): Promise<ProjectActionState> {
   void [_state, _formData]
-  await requireCurrentUser()
+  await requireAdministrator()
   if (!uuidPattern.test(taskId)) return { status: "error", message: "Tarefa inválida." }
   try {
     await deleteTask(taskId)

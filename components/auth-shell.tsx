@@ -3,6 +3,7 @@ import Image from "next/image"
 import { BarChart3, CheckCircle2, FolderKanban, ShieldCheck, Target } from "lucide-react"
 
 import { getWorkspaceSettings } from "@/lib/auth/database"
+import { LegalLinks } from "@/components/legal-documents"
 
 export async function AuthShell({ children }: { children: ReactNode }) {
   const settings = await getWorkspaceSettings().catch(() => ({ site_name: "GBQ Projetos", site_subtitle: "Gestão à vista", logo_type: null, updated_at: new Date(0) }))
@@ -67,10 +68,13 @@ export async function AuthShell({ children }: { children: ReactNode }) {
           <div className="rounded-3xl border bg-card p-6 shadow-sm sm:p-8">
             {children}
           </div>
-          <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-            <ShieldCheck className="size-3.5" />
-            Ambiente protegido e acesso restrito
-          </p>
+          <div className="mt-6 space-y-2">
+            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+              <ShieldCheck className="size-3.5" />
+              Ambiente protegido e acesso restrito
+            </p>
+            <LegalLinks />
+          </div>
         </div>
       </section>
     </main>

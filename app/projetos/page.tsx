@@ -1,11 +1,17 @@
 import { ProjectPortfolio } from "@/components/project-portfolio"
 import { requireCurrentUser } from "@/lib/auth/session"
+import { listUsers } from "@/lib/auth/database"
 import { listProjects } from "@/lib/projects/database"
 
 export const dynamic = "force-dynamic"
 
 export default async function ProjectsPage() {
-  await requireCurrentUser()
-  const projects = await listProjects()
-  return <ProjectPortfolio projects={projects} />
+  const user = await requireCurrentUser()
+  const [projects, users] = await Promise.all([listProjects(user), user.role === "admin" ? listUsers() : Promise.resolve([])])
+  return <ProjectPortfolio
+    projects={projects}
+    clients={users.filter((item) => item.role === "client").map((item) => ({ id: item.id, name: item.name, email: item.email }))}
+    responsibles={users.filter((item) => item.role !== "client").map((item) => ({ id: item.id, name: item.name, email: item.email }))}
+    isAdmin={user.role === "admin"}
+  />
 }

@@ -8,7 +8,6 @@ import {
   Bell,
   ChartNoAxesColumnIncreasing,
   ChevronDown,
-  DatabaseZap,
   FolderKanban,
   LayoutDashboard,
   Plus,
@@ -54,9 +53,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 const items = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/projetos", label: "Projetos", icon: FolderKanban },
-  { href: "/progresso", label: "Progresso", icon: ChartNoAxesColumnIncreasing },
-  { href: "/equipe", label: "Equipe e acessos", icon: Users },
-  { href: "/diagnostico", label: "Diagnóstico", icon: DatabaseZap },
+  { href: "/progresso", label: "Progresso", icon: ChartNoAxesColumnIncreasing, adminOnly: true },
+  { href: "/equipe", label: "Equipe e acessos", icon: Users, adminOnly: true },
 ]
 
 export function AppShell({
@@ -109,7 +107,7 @@ export function AppShell({
               <SidebarGroupLabel>Workspace</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {items.map((item) => {
+                  {items.filter((item) => !item.adminOnly || currentUser?.role === "admin").map((item) => {
                     const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
 
                     return (

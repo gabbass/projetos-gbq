@@ -6,6 +6,7 @@ import {
   createUser,
   deleteUser,
   updateUser,
+  updateOwnProfile,
   updateUserTheme,
   updateWorkspaceSettings,
   type UserRole,
@@ -26,24 +27,32 @@ function textField(formData: FormData, name: string, maxLength: number) {
   return String(formData.get(name) ?? "").trim().slice(0, maxLength)
 }
 
+function phoneField(formData: FormData) {
+  return textField(formData, "phone", 30).replace(/\D/g, "")
+}
+
 function readUserInput(formData: FormData) {
   const name = textField(formData, "name", 100)
   const email = textField(formData, "email", 254).toLowerCase()
+  const phone = phoneField(formData)
   const area = textField(formData, "area", 100)
   const role = textField(formData, "role", 20) as UserRole
 
   if (name.length < 2) return { error: "Informe um nome com pelo menos 2 caracteres." } as const
   if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Informe um e-mail válido." } as const
+  if (phone.length < 10 || phone.length > 13) return { error: "Informe um celular válido, com DDD." } as const
   if (!area) return { error: "Informe a área do usuário." } as const
   if (!validRoles.has(role)) return { error: "Selecione um perfil válido." } as const
 
-  return { value: { name, email, area, role } } as const
+  return { value: { name, email, phone, area, role } } as const
 }
 
 function databaseMessage(error: unknown) {
   if (error instanceof Error) {
     if (error.message === "LAST_ADMIN") return "O workspace precisa manter pelo menos um administrador."
     if (error.message === "USER_NOT_FOUND") return "Esse usuário não existe mais."
+    if (error.message === "ROLE_IN_USE") return "O perfil não pode ser alterado enquanto o usuário estiver vinculado a um projeto nessa função."
+    if (error.message === "USER_IN_PROJECT") return "Remova o usuário dos projetos vinculados antes de excluir o acesso."
   }
   if (error && typeof error === "object" && "code" in error && error.code === "23505") {
     return "Já existe um usuário cadastrado com esse e-mail."
@@ -59,16 +68,36 @@ export async function createUserAction(
   const input = readUserInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
 
-  const password = String(formData.get("password") ?? "")
-  if (password.length < 8) return { status: "error", message: "A senha temporária deve ter pelo menos 8 caracteres." }
-
   try {
-    await createUser({ ...input.value, passwordHash: await hashPassword(password) })
+    await createUser({ ...input.value, passwordHash: await hashPassword(input.value.phone) })
     revalidatePath("/equipe")
     revalidatePath("/", "layout")
-    return { status: "success", message: "Usuário cadastrado. A senha deverá ser alterada no primeiro acesso." }
+    return { status: "success", message: "Usuário cadastrado. O celular é a chave do primeiro acesso e deverá ser substituído por uma senha pessoal." }
   } catch (error) {
     console.error("Falha ao cadastrar usuário:", error)
+    return { status: "error", message: databaseMessage(error) }
+  }
+}
+
+export async function updateOwnProfileAction(
+  _state: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const user = await requireCurrentUser()
+  const name = textField(formData, "name", 100)
+  const email = textField(formData, "email", 254).toLowerCase()
+  const phone = phoneField(formData)
+  if (name.length < 2) return { status: "error", message: "Informe um nome com pelo menos 2 caracteres." }
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { status: "error", message: "Informe um e-mail válido." }
+  if (phone.length < 10 || phone.length > 13) return { status: "error", message: "Informe um celular válido, com DDD." }
+
+  try {
+    await updateOwnProfile(user.id, { name, email, phone })
+    revalidatePath("/configuracoes")
+    revalidatePath("/", "layout")
+    return { status: "success", message: "Suas informações foram atualizadas." }
+  } catch (error) {
+    console.error("Falha ao atualizar o próprio perfil:", error)
     return { status: "error", message: databaseMessage(error) }
   }
 }
@@ -84,7 +113,7 @@ export async function updateUserAction(
   if ("error" in input) return { status: "error", message: input.error }
 
   try {
-    await updateUser(userId, input.value)
+    await updateUser(userId, { ...input.value, accessKeyHash: await hashPassword(input.value.phone) })
     revalidatePath("/equipe")
     revalidatePath("/", "layout")
     return { status: "success", message: "Dados e permissões atualizados." }

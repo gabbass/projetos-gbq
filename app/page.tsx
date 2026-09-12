@@ -5,7 +5,7 @@ import { listProjects, listTasks } from "@/lib/projects/database"
 export const dynamic = "force-dynamic"
 
 export default async function Home() {
-  await requireCurrentUser()
-  const [projects, tasks] = await Promise.all([listProjects(), listTasks()])
-  return <KanbanBoard projects={projects} tasks={tasks} />
+  const user = await requireCurrentUser()
+  const [projects, tasks] = await Promise.all([listProjects(user), listTasks(user)])
+  return <KanbanBoard projects={projects} tasks={tasks} canEdit={user.role === "admin"} />
 }

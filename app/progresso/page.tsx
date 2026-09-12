@@ -3,14 +3,14 @@ import { AlertCircle, CheckCircle2, CircleGauge, FolderKanban } from "lucide-rea
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { requireCurrentUser } from "@/lib/auth/session"
+import { requireAdministrator } from "@/lib/auth/session"
 import { listProjects, listTasks } from "@/lib/projects/database"
 
 export const dynamic = "force-dynamic"
 
 export default async function ProgressPage() {
-  await requireCurrentUser()
-  const [projects, tasks] = await Promise.all([listProjects(), listTasks()])
+  const user = await requireAdministrator()
+  const [projects, tasks] = await Promise.all([listProjects(user), listTasks(user)])
   const completed = tasks.filter((task) => task.status === "done").length
   const waiting = tasks.filter((task) => task.status === "waiting").length
   const overall = tasks.length ? Math.round((completed / tasks.length) * 100) : 0

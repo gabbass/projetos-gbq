@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
+import { requireAdministrator } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -170,6 +171,7 @@ function formatDatabaseTime(value: Date) {
 }
 
 export default async function DiagnosticPage() {
+  await requireAdministrator()
   const runtime = getRuntimeInfo()
   const database = await checkDatabase()
   const RuntimeIcon = runtime.icon
@@ -195,7 +197,7 @@ export default async function DiagnosticPage() {
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/diagnostico">
+          <Link href="/configuracoes/diagnostico">
             <RefreshCw />
             Testar novamente
           </Link>

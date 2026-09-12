@@ -1,10 +1,12 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import {
   LoaderCircle,
+  DatabaseZap,
   LockKeyhole,
   Moon,
   Pencil,
@@ -19,6 +21,7 @@ import {
   createUserAction,
   deleteUserAction,
   updateAppearanceAction,
+  updateOwnProfileAction,
   updateThemeAction,
   updateUserAction,
   type SettingsActionState,
@@ -37,6 +40,7 @@ type UserItem = {
   id: string
   name: string
   email: string
+  phone: string
   role: "admin" | "client"
   area: string
   mustChangePassword: boolean
@@ -44,6 +48,11 @@ type UserItem = {
 
 type AppearanceSettings = {
   userTheme: "light" | "dark"
+  userName: string
+  userEmail: string
+  userPhone: string
+  userArea: string
+  userRole: "admin" | "client"
   siteName: string
   siteSubtitle: string
   hasLogo: boolean
@@ -103,6 +112,11 @@ function UserFields({ user }: { user?: UserItem }) {
         <Label htmlFor={user ? `email-${user.id}` : "new-email"}>E-mail</Label>
         <Input id={user ? `email-${user.id}` : "new-email"} name="email" type="email" defaultValue={user?.email} required maxLength={254} />
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor={user ? `phone-${user.id}` : "new-phone"}>Celular com DDD</Label>
+        <Input id={user ? `phone-${user.id}` : "new-phone"} name="phone" type="tel" inputMode="tel" defaultValue={user?.phone} required minLength={10} maxLength={20} placeholder="11999999999" />
+        {!user ? <p className="text-xs text-muted-foreground">O número será a chave do primeiro acesso, junto com o e-mail.</p> : null}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid gap-2">
           <Label htmlFor={user ? `role-${user.id}` : "new-role"}>Perfil</Label>
@@ -128,13 +142,22 @@ function CreateUserForm() {
   return (
     <form action={action} className="grid gap-5">
       <UserFields />
-      <div className="grid gap-2">
-        <Label htmlFor="new-password">Senha temporária</Label>
-        <Input id="new-password" name="password" type="password" autoComplete="new-password" minLength={8} required />
-        <p className="text-xs text-muted-foreground">O usuário será obrigado a trocar a senha no primeiro acesso.</p>
-      </div>
       <ActionFeedback state={state} />
       <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
+    </form>
+  )
+}
+
+function ProfileForm({ settings }: { settings: AppearanceSettings }) {
+  const [state, action] = useActionState(updateOwnProfileAction, initialState)
+  return (
+    <form action={action} className="grid gap-5">
+      <div className="grid gap-2"><Label htmlFor="profile-name">Nome completo</Label><Input id="profile-name" name="name" defaultValue={settings.userName} required minLength={2} maxLength={100} /></div>
+      <div className="grid gap-2"><Label htmlFor="profile-email">E-mail</Label><Input id="profile-email" name="email" type="email" defaultValue={settings.userEmail} required maxLength={254} /></div>
+      <div className="grid gap-2"><Label htmlFor="profile-phone">Celular com DDD</Label><Input id="profile-phone" name="phone" type="tel" inputMode="tel" defaultValue={settings.userPhone} required minLength={10} maxLength={20} placeholder="11999999999" /></div>
+      <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 text-sm"><p><span className="text-muted-foreground">Perfil:</span> {settings.userRole === "admin" ? "Administrador" : "Cliente"}</p><p><span className="text-muted-foreground">Área:</span> {settings.userArea || "Não informada"}</p></div>
+      <ActionFeedback state={state} />
+      <div><SubmitButton>Salvar minhas informações</SubmitButton></div>
     </form>
   )
 }
@@ -279,7 +302,7 @@ export function TeamAccessPanel({ users, currentUserId, isAdmin }: TeamAccessPan
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="pl-6"><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name, user.email)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{user.email}{user.mustChangePassword ? " · troca de senha pendente" : ""}</p></div></div></TableCell>
+                    <TableCell className="pl-6"><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name, user.email)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{user.email}{user.phone ? ` · ${user.phone}` : ""}{user.mustChangePassword ? " · primeiro acesso pendente" : ""}</p></div></div></TableCell>
                     <TableCell className="text-muted-foreground">{user.area || "—"}</TableCell>
                     <TableCell><Badge variant={user.role === "admin" ? "default" : "outline"}>{user.role === "admin" ? "Administrador" : "Cliente"}</Badge></TableCell>
                     {isAdmin ? <TableCell className="pr-6 text-right"><EditUserSheet user={user} currentUserId={currentUserId} /></TableCell> : null}
@@ -305,23 +328,26 @@ export function AppearanceSettingsPanel({ isAdmin, settings }: { isAdmin: boolea
 
       <div className="grid max-w-5xl gap-6 lg:grid-cols-2">
         <Card>
+          <CardHeader><CardTitle>Minhas informações</CardTitle><CardDescription>Dados da sua própria conta.</CardDescription></CardHeader>
+          <CardContent><ProfileForm settings={settings} /></CardContent>
+        </Card>
+        <Card>
           <CardHeader><CardTitle>Meu tema</CardTitle><CardDescription>Escolha como a aplicação aparece para você.</CardDescription></CardHeader>
           <CardContent><ThemeForm theme={settings.userTheme} /></CardContent>
         </Card>
 
-        <Card>
-        <CardHeader><CardTitle>Identidade visual</CardTitle><CardDescription>Defina nome, subtítulo, logo e favicon compartilhados pela aplicação.</CardDescription></CardHeader>
-        <CardContent>
-          {isAdmin ? <AppearanceForm settings={settings} /> : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium"><LockKeyhole className="size-4" />Identidade do workspace</div>
-              <p className="text-sm text-muted-foreground">{settings.siteName} · {settings.siteSubtitle}</p>
-              <p className="text-sm text-muted-foreground">Logo {settings.hasLogo ? "configurada" : "padrão"} · Favicon {settings.hasFavicon ? "configurado" : "padrão"}</p>
-              <p className="text-xs text-muted-foreground">Logo e favicon são gerenciados pelos administradores.</p>
-            </div>
-          )}
-        </CardContent>
-        </Card>
+        {isAdmin ? (
+          <Card>
+            <CardHeader><CardTitle>Identidade visual</CardTitle><CardDescription>Defina nome, subtítulo, logo e favicon compartilhados pela aplicação.</CardDescription></CardHeader>
+            <CardContent><AppearanceForm settings={settings} /></CardContent>
+          </Card>
+        ) : null}
+        {isAdmin ? (
+          <Card>
+            <CardHeader><CardTitle>Diagnóstico</CardTitle><CardDescription>Consulte o ambiente de execução e a conexão com o banco de dados.</CardDescription><CardAction><DatabaseZap className="size-5 text-primary" /></CardAction></CardHeader>
+            <CardContent><Button asChild variant="outline"><Link href="/configuracoes/diagnostico"><DatabaseZap />Abrir diagnóstico</Link></Button></CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   )

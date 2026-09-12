@@ -8,6 +8,11 @@ export type Project = {
   name: string
   area: string
   owner: string
+  client_user_id: string | null
+  client_name: string | null
+  client_email: string | null
+  responsible_user_id: string | null
+  responsible_name: string | null
   priority: ProjectPriority
   deadline: string | null
   objective: string
@@ -60,6 +65,8 @@ async function initializeProjects() {
       name text NOT NULL,
       area text NOT NULL DEFAULT '',
       owner text NOT NULL DEFAULT '',
+      client_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
+      responsible_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
       priority text NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
       deadline date,
       objective text NOT NULL DEFAULT '',
@@ -67,6 +74,11 @@ async function initializeProjects() {
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `)
+
+  await pool.query(`
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL;
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS responsible_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL;
   `)
 
   await pool.query(`
@@ -97,10 +109,11 @@ async function ensureProjectsDatabase() {
   await globalForProjects.gbqProjectsReady
 }
 
-export async function listProjects(): Promise<Project[]> {
+export async function listProjects(user?: { id: string; role: "admin" | "client" }): Promise<Project[]> {
   await ensureProjectsDatabase()
   const result = await getPool().query<Project>(`
-    SELECT p.id, p.name, p.area, p.owner, p.priority,
+    SELECT p.id, p.name, p.area, p.owner, p.client_user_id, client.name AS client_name,
+      client.email AS client_email, p.responsible_user_id, responsible.name AS responsible_name, p.priority,
       p.deadline::text AS deadline, p.objective, p.created_at, p.updated_at,
       count(t.id)::int AS task_count,
       count(t.id) FILTER (WHERE t.status = 'done')::int AS completed_count,
@@ -108,47 +121,60 @@ export async function listProjects(): Promise<Project[]> {
         ELSE round(100.0 * count(t.id) FILTER (WHERE t.status = 'done') / count(t.id))::int
       END AS progress
     FROM projects p
+    LEFT JOIN app_users client ON client.id = p.client_user_id
+    LEFT JOIN app_users responsible ON responsible.id = p.responsible_user_id
     LEFT JOIN project_tasks t ON t.project_id = p.id
-    GROUP BY p.id
+    WHERE ($1::boolean OR p.client_user_id = $2::uuid)
+    GROUP BY p.id, client.id, responsible.id
     ORDER BY p.updated_at DESC, lower(p.name)
-  `)
+  `, [!user || user.role === "admin", user?.id ?? null])
   return result.rows
 }
 
-export async function listTasks(): Promise<ProjectTask[]> {
+export async function listTasks(user?: { id: string; role: "admin" | "client" }): Promise<ProjectTask[]> {
   await ensureProjectsDatabase()
   const result = await getPool().query<ProjectTask>(`
-    SELECT id, project_id, title, description, owner, priority, due_date::text AS due_date,
-      status, position, created_at, updated_at
-    FROM project_tasks
-    ORDER BY position, created_at
-  `)
+    SELECT t.id, t.project_id, t.title, t.description, t.owner, t.priority, t.due_date::text AS due_date,
+      t.status, t.position, t.created_at, t.updated_at
+    FROM project_tasks t
+    JOIN projects p ON p.id = t.project_id
+    WHERE ($1::boolean OR p.client_user_id = $2::uuid)
+    ORDER BY t.position, t.created_at
+  `, [!user || user.role === "admin", user?.id ?? null])
   return result.rows
 }
 
 export async function createProject(input: {
   name: string
   area: string
-  owner: string
+  clientUserId: string
+  responsibleUserId: string
   priority: ProjectPriority
   deadline: string | null
   objective: string
   createdBy: string
 }) {
   await ensureProjectsDatabase()
-  await getPool().query(
-    `INSERT INTO projects (name, area, owner, priority, deadline, objective, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [input.name, input.area, input.owner, input.priority, input.deadline, input.objective, input.createdBy],
+  const result = await getPool().query(
+    `INSERT INTO projects (name, area, owner, client_user_id, responsible_user_id, priority, deadline, objective, created_by)
+     SELECT $1, $2, responsible.name, client.id, responsible.id, $5, $6, $7, $8
+     FROM app_users client, app_users responsible
+     WHERE client.id = $3 AND client.role = 'client' AND responsible.id = $4 AND responsible.role <> 'client'`,
+    [input.name, input.area, input.clientUserId, input.responsibleUserId, input.priority, input.deadline, input.objective, input.createdBy],
   )
+  if (result.rowCount !== 1) throw new Error("INVALID_PROJECT_PARTICIPANTS")
 }
 
 export async function updateProject(projectId: string, input: Omit<Parameters<typeof createProject>[0], "createdBy">) {
   await ensureProjectsDatabase()
   const result = await getPool().query(
-    `UPDATE projects SET name = $1, area = $2, owner = $3, priority = $4, deadline = $5,
-      objective = $6, updated_at = now() WHERE id = $7`,
-    [input.name, input.area, input.owner, input.priority, input.deadline, input.objective, projectId],
+    `UPDATE projects p SET name = $1, area = $2, owner = responsible.name,
+      client_user_id = client.id, responsible_user_id = responsible.id, priority = $5, deadline = $6,
+      objective = $7, updated_at = now()
+     FROM app_users client, app_users responsible
+     WHERE p.id = $8 AND client.id = $3 AND client.role = 'client'
+       AND responsible.id = $4 AND responsible.role <> 'client'`,
+    [input.name, input.area, input.clientUserId, input.responsibleUserId, input.priority, input.deadline, input.objective, projectId],
   )
   if (result.rowCount === 0) throw new Error("PROJECT_NOT_FOUND")
 }

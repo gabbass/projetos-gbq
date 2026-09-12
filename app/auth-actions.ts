@@ -3,8 +3,9 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { findUserByEmail, updateUserPassword } from "@/lib/auth/database"
+import { completeFirstAccess, findUserByEmail, findUserById } from "@/lib/auth/database"
 import { hashPassword, verifyPassword } from "@/lib/auth/password"
+import { LEGAL_VERSION } from "@/lib/legal"
 import {
   createSessionToken,
   SESSION_COOKIE,
@@ -31,14 +32,15 @@ async function setSession(user: { id: string; email: string; mustChangePassword:
 
 export async function loginAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase()
-  const password = String(formData.get("password") ?? "")
+  const passwordInput = String(formData.get("password") ?? "")
 
-  if (!email || !password) return { error: "Informe o e-mail e a senha." }
+  if (!email || !passwordInput) return { error: "Informe o e-mail e a senha ou celular de primeiro acesso." }
 
   try {
     const user = await findUserByEmail(email)
-    if (!user || !(await verifyPassword(password, user.password_hash))) {
-      return { error: "E-mail ou senha incorretos." }
+    const accessKey = user?.must_change_password ? passwordInput.replace(/\D/g, "") : passwordInput
+    if (!user || !(await verifyPassword(accessKey, user.password_hash))) {
+      return { error: "E-mail ou chave de acesso incorretos." }
     }
 
     await setSession({
@@ -58,17 +60,26 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
 export async function changePasswordAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const password = String(formData.get("password") ?? "")
   const confirmation = String(formData.get("confirmation") ?? "")
+  const acceptedTerms = String(formData.get("acceptTerms") ?? "")
+  const acceptedSecurityPolicy = String(formData.get("acceptSecurityPolicy") ?? "")
 
   if (password.length < 8) return { error: "A nova senha deve ter pelo menos 8 caracteres." }
   if (password === "12345678") return { error: "Escolha uma senha diferente da senha temporária." }
   if (password !== confirmation) return { error: "As senhas não coincidem." }
+  if (acceptedTerms !== LEGAL_VERSION || acceptedSecurityPolicy !== LEGAL_VERSION) {
+    return { error: "Leia e aceite os Termos de Uso e a Política de Segurança para continuar." }
+  }
 
   const cookieStore = await cookies()
   const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value)
   if (!session) redirect("/login")
 
   try {
-    await updateUserPassword(session.userId, await hashPassword(password))
+    const user = await findUserById(session.userId)
+    if (user?.phone && password.replace(/\D/g, "") === user.phone && /^[\d\s()+-]+$/.test(password)) {
+      return { error: "Escolha uma senha diferente do seu celular de acesso." }
+    }
+    await completeFirstAccess(session.userId, await hashPassword(password), LEGAL_VERSION)
     await setSession({
       id: session.userId,
       email: session.email,

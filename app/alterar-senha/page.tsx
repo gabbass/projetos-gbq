@@ -10,9 +10,9 @@ export default function ChangePasswordPage() {
         <span className="mb-4 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <KeyRound className="size-5" />
         </span>
-        <h2 className="font-heading text-2xl font-semibold tracking-tight">Crie uma nova senha</h2>
+        <h2 className="font-heading text-2xl font-semibold tracking-tight">Conclua seu primeiro acesso</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Este é seu primeiro acesso. Por segurança, substitua a senha temporária antes de continuar.
+          Crie uma senha pessoal, leia e aceite os documentos obrigatórios para continuar.
         </p>
       </div>
       <ChangePasswordForm />
