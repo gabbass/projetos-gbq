@@ -137,14 +137,23 @@ function UserFields({ user }: { user?: UserItem }) {
   )
 }
 
-function CreateUserForm() {
+function NewUserSheet() {
   const [state, action] = useActionState(createUserAction, initialState)
   return (
-    <form action={action} className="grid gap-5">
-      <UserFields />
-      <ActionFeedback state={state} />
-      <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
-    </form>
+    <Sheet>
+      <SheetTrigger asChild><Button><UserPlus />Novo usuário</Button></SheetTrigger>
+      <SheetContent className="overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Novo usuário</SheetTitle>
+          <SheetDescription>Cadastre uma pessoa e defina suas permissões.</SheetDescription>
+        </SheetHeader>
+        <form action={action} className="grid gap-5 px-6">
+          <UserFields />
+          <ActionFeedback state={state} />
+          <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
+        </form>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -270,10 +279,13 @@ export function TeamAccessPanel({ users, currentUserId, isAdmin }: TeamAccessPan
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <Badge variant="secondary" className="mb-3"><Users />Workspace</Badge>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Equipe e acessos</h1>
-        <p className="mt-1 text-muted-foreground">Gerencie os usuários e os níveis de acesso ao workspace.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Badge variant="secondary" className="mb-3"><Users />Workspace</Badge>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Equipe e acessos</h1>
+          <p className="mt-1 text-muted-foreground">Gerencie os usuários e os níveis de acesso ao workspace.</p>
+        </div>
+        {isAdmin ? <NewUserSheet /> : null}
       </div>
 
       {!isAdmin ? (
@@ -286,15 +298,7 @@ export function TeamAccessPanel({ users, currentUserId, isAdmin }: TeamAccessPan
         ))}
       </section>
 
-      <div className={isAdmin ? "grid gap-6 xl:grid-cols-[0.78fr_1.5fr]" : "grid gap-6"}>
-        {isAdmin ? (
-          <Card>
-            <CardHeader><CardTitle>Novo usuário</CardTitle><CardDescription>Cadastre uma pessoa e defina suas permissões.</CardDescription><CardAction><UserPlus className="size-5 text-primary" /></CardAction></CardHeader>
-            <CardContent><CreateUserForm /></CardContent>
-          </Card>
-        ) : null}
-
-        <Card>
+      <Card>
           <CardHeader><CardTitle>Usuários cadastrados</CardTitle><CardDescription>Equipe e permissões atuais da plataforma.</CardDescription><CardAction><Badge variant="outline">{users.length} registros</Badge></CardAction></CardHeader>
           <CardContent className="overflow-x-auto px-0">
             <Table>
@@ -311,8 +315,7 @@ export function TeamAccessPanel({ users, currentUserId, isAdmin }: TeamAccessPan
               </TableBody>
             </Table>
           </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   )
 }

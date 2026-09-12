@@ -1,10 +1,10 @@
 "use client"
 
-import { useActionState, useOptimistic, useState, useTransition } from "react"
+import { useActionState, useCallback, useOptimistic, useState, useSyncExternalStore, useTransition } from "react"
 import { useFormStatus } from "react-dom"
 import { CalendarDays, CheckCircle2, ChevronRight, CircleDashed, Clock3, Eye, FolderKanban, ListTodo, LoaderCircle, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react"
 
-import { createSubtaskAction, createTaskAction, deleteTaskAction, moveTaskAction, updateSubtaskStatusAction, updateTaskAction, type ProjectActionState } from "@/app/project-actions"
+import { createBoardItemAction, createSubtaskAction, createTaskAction, deleteTaskAction, moveTaskAction, updateSubtaskStatusAction, updateTaskAction, type ProjectActionState } from "@/app/project-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +25,34 @@ const columns: Array<{ status: TaskStatus; title: string; dot: string; surface: 
   { status: "done", title: "Concluído", dot: "bg-emerald-500", surface: "border-emerald-200/80 bg-emerald-50/60 dark:border-emerald-950 dark:bg-emerald-950/20" },
 ]
 const priorityLabel = { high: "Alta", medium: "Média", low: "Baixa" }
+const projectFilterChangeEvent = "dashboard-project-filter-change"
+const memoryProjectFilters = new Map<string, string>()
+
+function usePersistedProjectFilter(storageKey: string) {
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    window.addEventListener("storage", onStoreChange)
+    window.addEventListener(projectFilterChangeEvent, onStoreChange)
+    return () => {
+      window.removeEventListener("storage", onStoreChange)
+      window.removeEventListener(projectFilterChangeEvent, onStoreChange)
+    }
+  }, [])
+  const getSnapshot = useCallback(() => {
+    try {
+      return window.localStorage.getItem(storageKey) ?? memoryProjectFilters.get(storageKey) ?? ""
+    } catch {
+      return memoryProjectFilters.get(storageKey) ?? ""
+    }
+  }, [storageKey])
+  const setValue = useCallback((value: string) => {
+    memoryProjectFilters.set(storageKey, value)
+    try {
+      window.localStorage.setItem(storageKey, value)
+    } catch {}
+    window.dispatchEvent(new Event(projectFilterChangeEvent))
+  }, [storageKey])
+  return [useSyncExternalStore(subscribe, getSnapshot, () => ""), setValue] as const
+}
 
 function Feedback({ state }: { state: ProjectActionState }) {
   return state.message ? <p role={state.status === "error" ? "alert" : "status"} className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600"}>{state.message}</p> : null
@@ -35,8 +63,9 @@ function Submit({ children, destructive = false }: { children: React.ReactNode; 
   return <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : null}{pending ? "Salvando..." : children}</Button>
 }
 
-function TaskFields({ task, projectId }: { task?: ProjectTask; projectId?: string }) {
+function TaskFields({ task, projectId, defaultStatus, lockStatus = false }: { task?: ProjectTask; projectId?: string; defaultStatus?: TaskStatus; lockStatus?: boolean }) {
   const suffix = task?.id ?? "new"
+  const status = task?.status ?? defaultStatus ?? "todo"
   return <>
     {projectId ? <input type="hidden" name="projectId" value={projectId} /> : null}
     <div className="grid gap-2"><Label htmlFor={`task-title-${suffix}`}>Título da tarefa</Label><Input id={`task-title-${suffix}`} name="title" defaultValue={task?.title} required minLength={2} maxLength={160} /></div>
@@ -47,7 +76,7 @@ function TaskFields({ task, projectId }: { task?: ProjectTask; projectId?: strin
     </div>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="grid gap-2"><Label htmlFor={`task-priority-${suffix}`}>Prioridade</Label><Select name="priority" defaultValue={task?.priority ?? "medium"}><SelectTrigger id={`task-priority-${suffix}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">Alta</SelectItem><SelectItem value="medium">Média</SelectItem><SelectItem value="low">Baixa</SelectItem></SelectContent></Select></div>
-      <div className="grid gap-2"><Label htmlFor={`task-status-${suffix}`}>Status</Label><Select name="status" defaultValue={task?.status ?? "todo"}><SelectTrigger id={`task-status-${suffix}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{columns.map((column) => <SelectItem key={column.status} value={column.status}><span className={`size-2 rounded-full ${column.dot}`} />{column.title}</SelectItem>)}</SelectContent></Select></div>
+      <div className="grid gap-2"><Label htmlFor={`task-status-${suffix}`}>Status</Label>{lockStatus ? <><input type="hidden" name="status" value={status} /><Select value={status} disabled><SelectTrigger id={`task-status-${suffix}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{columns.map((column) => <SelectItem key={column.status} value={column.status}><span className={`size-2 rounded-full ${column.dot}`} />{column.title}</SelectItem>)}</SelectContent></Select></> : <Select name="status" defaultValue={status}><SelectTrigger id={`task-status-${suffix}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent>{columns.map((column) => <SelectItem key={column.status} value={column.status}><span className={`size-2 rounded-full ${column.dot}`} />{column.title}</SelectItem>)}</SelectContent></Select>}</div>
     </div>
   </>
 }
@@ -55,6 +84,14 @@ function TaskFields({ task, projectId }: { task?: ProjectTask; projectId?: strin
 function NewTaskSheet({ projectId, projectName }: { projectId: string; projectName: string }) {
   const [state, action] = useActionState(createTaskAction, initialState)
   return <Sheet><SheetTrigger asChild><Button><Plus />Nova tarefa</Button></SheetTrigger><SheetContent className="overflow-y-auto sm:max-w-lg"><SheetHeader><SheetTitle>Nova tarefa</SheetTitle><SheetDescription>Adicione uma tarefa a {projectName}.</SheetDescription></SheetHeader><form action={action} className="grid gap-5 px-6"><TaskFields projectId={projectId} /><Feedback state={state} /><div><Submit>Salvar tarefa</Submit></div></form></SheetContent></Sheet>
+}
+
+function QuickCreateSheet({ project, status, tasks }: { project: Project; status: TaskStatus; tasks: ProjectTask[] }) {
+  const [itemType, setItemType] = useState<"task" | "subtask">("task")
+  const [state, action] = useActionState(createBoardItemAction.bind(null, status), initialState)
+  const column = columns.find((item) => item.status === status)
+
+  return <Sheet><SheetTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={`Criar item em ${column?.title}`}><Plus /></Button></SheetTrigger><SheetContent className="overflow-y-auto sm:max-w-lg"><SheetHeader><SheetTitle>Novo item em {column?.title}</SheetTitle><SheetDescription>Crie uma tarefa ou subtarefa em {project.name} já com este status.</SheetDescription></SheetHeader><form action={action} className="grid gap-5 px-6"><div className="grid gap-2"><Label htmlFor={`item-type-${status}`}>Tipo</Label><Select name="itemType" value={itemType} onValueChange={(value) => setItemType(value as "task" | "subtask")}><SelectTrigger id={`item-type-${status}`} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="task">Tarefa</SelectItem><SelectItem value="subtask">Subtarefa</SelectItem></SelectContent></Select></div>{itemType === "task" ? <TaskFields projectId={project.id} defaultStatus={status} lockStatus /> : <><div className="grid gap-2"><Label htmlFor={`parent-task-${status}`}>Tarefa principal</Label><Select name="parentTaskId" required><SelectTrigger id={`parent-task-${status}`} className="w-full"><SelectValue placeholder="Selecione a tarefa principal" /></SelectTrigger><SelectContent>{tasks.map((task) => <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>)}</SelectContent></Select>{tasks.length === 0 ? <p className="text-xs text-muted-foreground">Crie uma tarefa principal antes de adicionar uma subtarefa.</p> : null}</div><div className="grid gap-2"><Label htmlFor={`subtask-title-${status}`}>Título da subtarefa</Label><Input id={`subtask-title-${status}`} name="subtaskTitle" required minLength={2} maxLength={160} /></div><input type="hidden" name="status" value={status} /></>}<Feedback state={state} /><div><Submit>{itemType === "task" ? "Salvar tarefa" : "Salvar subtarefa"}</Submit></div></form></SheetContent></Sheet>
 }
 
 function EditTaskSheet({ task, subtasks, messages, unread, currentUserId }: { task: ProjectTask; subtasks: ProjectTask[]; messages: ChatMessage[]; unread: number; currentUserId: string }) {
@@ -81,7 +118,8 @@ function TaskCard({ task, subtasks, dragging, canEdit, messages, unread, current
 }
 
 export function KanbanBoard({ projects, tasks, canEdit, currentUserId, chat }: { projects: Project[]; tasks: ProjectTask[]; canEdit: boolean; currentUserId: string; chat: { messages: ChatMessage[]; unread: ChatUnread[] } }) {
-  const [selectedId, setSelectedId] = useState(projects[0]?.id ?? "")
+  const [storedProjectId, persistProjectId] = usePersistedProjectFilter(`dashboard-project-filter:${currentUserId}`)
+  const selectedId = projects.some((item) => item.id === storedProjectId) ? storedProjectId : projects[0]?.id ?? ""
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<TaskStatus | null>(null)
   const [moveError, setMoveError] = useState("")
@@ -92,6 +130,9 @@ export function KanbanBoard({ projects, tasks, canEdit, currentUserId, chat }: {
   const projectTasks = allProjectTasks.filter((task) => !task.parent_task_id)
   const completedTasks = allProjectTasks.filter((task) => task.status === "done").length
   const projectProgress = allProjectTasks.length ? Math.round((completedTasks / allProjectTasks.length) * 100) : 0
+  function selectProject(projectId: string) {
+    persistProjectId(projectId)
+  }
 
   function beginDrag(task: ProjectTask, event: React.DragEvent) {
     setDraggingId(task.id)
@@ -115,8 +156,8 @@ export function KanbanBoard({ projects, tasks, canEdit, currentUserId, chat }: {
     })
   }
 
-  return <div className="flex flex-col gap-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="size-4" />Tarefas organizadas por etapa</div><h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Visão geral</h1><p className="mt-1 text-muted-foreground">{canEdit ? "Mova as tarefas entre as colunas para atualizar o avanço do projeto." : "Acompanhe as tarefas e o avanço dos seus projetos como cliente."}</p></div>{project ? <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><Select value={project.id} onValueChange={setSelectedId}><SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger><SelectContent>{projects.map((item) => <SelectItem key={item.id} value={item.id}><FolderKanban />{item.name}</SelectItem>)}</SelectContent></Select>{canEdit ? <NewTaskSheet projectId={project.id} projectName={project.name} /> : null}</div> : null}</div>
-    {!project ? <Card><CardContent className="flex min-h-80 flex-col items-center justify-center gap-3 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-muted"><CircleDashed className="size-5 text-muted-foreground" /></span><div><p className="font-medium">Nenhum projeto disponível</p><p className="text-sm text-muted-foreground">{canEdit ? "Crie um projeto para começar." : "Você ainda não foi vinculado como cliente de um projeto."}</p></div><Button asChild variant="outline"><a href="/projetos">Ir para Projetos<ChevronRight /></a></Button></CardContent></Card> : <><Card size="sm"><CardHeader><CardDescription>{project.area} · Responsável: {project.responsible_name ?? project.owner}</CardDescription><div className="flex items-center gap-2"><CardTitle>{project.name}</CardTitle><Badge variant="outline" className="font-mono">#{project.code}</Badge></div><CardAction><Badge variant="outline">{completedTasks}/{allProjectTasks.length} itens concluídos · {projectProgress}%</Badge></CardAction></CardHeader></Card>{moveError ? <p role="alert" className="text-sm text-destructive">{moveError}</p> : null}<div className="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-4">{columns.map((column) => { const items = projectTasks.filter((task) => task.status === column.status); return <Card key={column.status} onDragOver={(event) => { if (canEdit) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(column.status) } }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null) }} onDrop={(event) => dropTask(column.status, event)} className={`min-h-72 transition-[box-shadow,transform] ${column.surface} ${dropTarget === column.status && draggingId ? "scale-[1.01] ring-2 ring-primary/50 ring-offset-2" : ""}`}><CardHeader><CardTitle className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${column.dot}`} />{column.title}</CardTitle><CardAction><Badge variant="outline" className="bg-background/70">{items.length}</Badge></CardAction></CardHeader><CardContent className="space-y-3">{items.length ? items.map((task) => { const messages = chat.messages.filter((message) => message.target_type === "task" && message.target_id === task.id); const unread = chat.unread.find((item) => item.target_type === "task" && item.target_id === task.id)?.count ?? 0; return <TaskCard key={task.id} task={task} subtasks={allProjectTasks.filter((item) => item.parent_task_id === task.id)} canEdit={canEdit} dragging={draggingId === task.id} messages={messages} unread={unread} currentUserId={currentUserId} onDragStart={beginDrag} onDragEnd={() => { setDraggingId(null); setDropTarget(null) }} /> }) : <div className={`flex min-h-32 items-center justify-center rounded-xl border border-dashed bg-background/30 px-4 text-center text-xs text-muted-foreground transition-colors ${dropTarget === column.status && draggingId ? "border-primary bg-primary/5 text-primary" : ""}`}>{draggingId ? "Solte a tarefa aqui" : "Nenhuma tarefa nesta etapa"}</div>}</CardContent></Card> })}</div></>}
+  return <div className="flex flex-col gap-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="size-4" />Tarefas organizadas por etapa</div><h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Visão geral</h1><p className="mt-1 text-muted-foreground">{canEdit ? "Mova as tarefas entre as colunas para atualizar o avanço do projeto." : "Acompanhe as tarefas e o avanço dos seus projetos como cliente."}</p></div>{project ? <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><Label htmlFor="dashboard-project-filter" className="sr-only">Filtrar por projeto</Label><Select value={project.id} onValueChange={selectProject}><SelectTrigger id="dashboard-project-filter" aria-label="Filtrar por projeto" className="w-full sm:w-64"><SelectValue placeholder="Filtrar por projeto" /></SelectTrigger><SelectContent>{projects.map((item) => <SelectItem key={item.id} value={item.id}><FolderKanban />{item.name}</SelectItem>)}</SelectContent></Select>{canEdit ? <NewTaskSheet projectId={project.id} projectName={project.name} /> : null}</div> : null}</div>
+    {!project ? <Card><CardContent className="flex min-h-80 flex-col items-center justify-center gap-3 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-muted"><CircleDashed className="size-5 text-muted-foreground" /></span><div><p className="font-medium">Nenhum projeto disponível</p><p className="text-sm text-muted-foreground">{canEdit ? "Crie um projeto para começar." : "Você ainda não foi vinculado como cliente de um projeto."}</p></div><Button asChild variant="outline"><a href="/projetos">Ir para Projetos<ChevronRight /></a></Button></CardContent></Card> : <><Card size="sm"><CardHeader><CardDescription>{project.area} · Responsável: {project.responsible_name ?? project.owner}</CardDescription><div className="flex items-center gap-2"><CardTitle>{project.name}</CardTitle><Badge variant="outline" className="font-mono">#{project.code}</Badge></div><CardAction><Badge variant="outline">{completedTasks}/{allProjectTasks.length} itens concluídos · {projectProgress}%</Badge></CardAction></CardHeader></Card>{moveError ? <p role="alert" className="text-sm text-destructive">{moveError}</p> : null}<div className="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-4">{columns.map((column) => { const items = projectTasks.filter((task) => task.status === column.status); return <Card key={column.status} onDragOver={(event) => { if (canEdit) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(column.status) } }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null) }} onDrop={(event) => dropTask(column.status, event)} className={`min-h-72 transition-[box-shadow,transform] ${column.surface} ${dropTarget === column.status && draggingId ? "scale-[1.01] ring-2 ring-primary/50 ring-offset-2" : ""}`}><CardHeader><CardTitle className="flex items-center gap-2"><span className={`size-2.5 rounded-full ${column.dot}`} />{column.title}</CardTitle><CardAction><div className="flex items-center gap-1"><Badge variant="outline" className="bg-background/70">{items.length}</Badge>{canEdit ? <QuickCreateSheet project={project} status={column.status} tasks={projectTasks} /> : null}</div></CardAction></CardHeader><CardContent className="space-y-3">{items.length ? items.map((task) => { const messages = chat.messages.filter((message) => message.target_type === "task" && message.target_id === task.id); const unread = chat.unread.find((item) => item.target_type === "task" && item.target_id === task.id)?.count ?? 0; return <TaskCard key={task.id} task={task} subtasks={allProjectTasks.filter((item) => item.parent_task_id === task.id)} canEdit={canEdit} dragging={draggingId === task.id} messages={messages} unread={unread} currentUserId={currentUserId} onDragStart={beginDrag} onDragEnd={() => { setDraggingId(null); setDropTarget(null) }} /> }) : <div className={`flex min-h-32 items-center justify-center rounded-xl border border-dashed bg-background/30 px-4 text-center text-xs text-muted-foreground transition-colors ${dropTarget === column.status && draggingId ? "border-primary bg-primary/5 text-primary" : ""}`}>{draggingId ? "Solte a tarefa aqui" : "Nenhuma tarefa nesta etapa"}</div>}</CardContent></Card> })}</div></>}
   </div>
 }
 

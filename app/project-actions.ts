@@ -139,6 +139,41 @@ export async function createTaskAction(_state: ProjectActionState, formData: For
   }
 }
 
+export async function createBoardItemAction(status: TaskStatus, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
+  const user = await requireAdministrator()
+  if (!statuses.has(status)) return { status: "error", message: "Selecione um status válido." }
+
+  const itemType = text(formData, "itemType", 10)
+  if (itemType === "subtask") {
+    const parentTaskId = text(formData, "parentTaskId", 36)
+    const title = text(formData, "subtaskTitle", 160)
+    if (!uuidPattern.test(parentTaskId)) return { status: "error", message: "Selecione a tarefa principal." }
+    if (title.length < 2) return { status: "error", message: "Informe o título da subtarefa." }
+    try {
+      await createSubtask(parentTaskId, title, user.id, status)
+      refreshProjectViews()
+      return { status: "success", message: "Subtarefa criada com sucesso." }
+    } catch (error) {
+      console.error("Falha ao criar subtarefa:", error)
+      return { status: "error", message: errorMessage(error) }
+    }
+  }
+
+  if (itemType !== "task") return { status: "error", message: "Selecione o tipo do item." }
+  const projectId = text(formData, "projectId", 36)
+  if (!uuidPattern.test(projectId)) return { status: "error", message: "Selecione um projeto válido." }
+  const input = taskInput(formData)
+  if ("error" in input) return { status: "error", message: input.error }
+  try {
+    await createTask({ projectId, ...input.value, status, createdBy: user.id })
+    refreshProjectViews()
+    return { status: "success", message: "Tarefa criada com sucesso." }
+  } catch (error) {
+    console.error("Falha ao criar tarefa:", error)
+    return { status: "error", message: errorMessage(error) }
+  }
+}
+
 export async function updateTaskAction(taskId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
   await requireAdministrator()
   if (!uuidPattern.test(taskId)) return { status: "error", message: "Tarefa inválida." }

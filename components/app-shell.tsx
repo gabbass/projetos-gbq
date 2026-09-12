@@ -10,7 +10,6 @@ import {
   ChevronDown,
   FolderKanban,
   LayoutDashboard,
-  Plus,
   Search,
   Settings,
   Target,
@@ -21,7 +20,6 @@ import {
 import { logoutAction } from "@/app/auth-actions"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,8 +84,8 @@ export function AppShell({
                 <SidebarMenuButton size="lg" tooltip={siteName} asChild>
                   <Link href="/">
                     {hasLogo ? (
-                      <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background">
-                        <Image src={`/api/branding/logo?v=${encodeURIComponent(brandingVersion)}`} alt={`Logo de ${siteName}`} width={32} height={32} unoptimized className="size-8 object-contain" />
+                      <span className="flex h-8 w-10 shrink-0 items-center justify-center overflow-hidden group-data-[collapsible=icon]:w-8">
+                        <Image src={`/api/branding/logo?v=${encodeURIComponent(brandingVersion)}`} alt={`Logo de ${siteName}`} width={80} height={32} unoptimized className="max-h-8 w-auto max-w-10 object-contain" />
                       </span>
                     ) : (
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Target className="size-4" /></span>
@@ -129,6 +127,12 @@ export function AppShell({
 
           <SidebarFooter>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Notificações">
+                  <Bell />
+                  <span>Notificações</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Configurações">
                   <Link href="/configuracoes">
@@ -177,19 +181,6 @@ export function AppShell({
             <div className="relative hidden w-full max-w-sm sm:block">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input aria-label="Buscar" className="pl-9" placeholder="Buscar projetos, tarefas..." />
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="outline" size="icon" aria-label="Notificações">
-                <Bell />
-              </Button>
-              {currentUser?.role === "admin" ? (
-                <Button asChild aria-label="Novo projeto">
-                  <Link href="/projetos">
-                    <Plus />
-                    <span className="hidden sm:inline">Novo projeto</span>
-                  </Link>
-                </Button>
-              ) : null}
             </div>
           </header>
           <main className="flex flex-1 flex-col p-4 md:p-6 lg:p-8">{children}</main>

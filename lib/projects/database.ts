@@ -363,16 +363,16 @@ export async function deleteTask(taskId: string) {
   if (result.rowCount === 0) throw new Error("TASK_NOT_FOUND")
 }
 
-export async function createSubtask(parentTaskId: string, title: string, createdBy: string) {
+export async function createSubtask(parentTaskId: string, title: string, createdBy: string, status: TaskStatus = "todo") {
   await ensureProjectsDatabase()
   for (;;) {
     try {
       const result = await getPool().query(
         `INSERT INTO project_tasks (code, project_id, parent_task_id, title, description, owner, priority, due_date, status, position, created_by)
-         SELECT $1, parent.project_id, parent.id, $2, '', parent.owner, parent.priority, parent.due_date, 'todo',
-           COALESCE((SELECT max(position) + 1 FROM project_tasks WHERE parent_task_id = parent.id), 0), $3
-         FROM project_tasks parent WHERE parent.id = $4 AND parent.parent_task_id IS NULL`,
-        [createReadableCode(), title, createdBy, parentTaskId],
+         SELECT $1, parent.project_id, parent.id, $2, '', parent.owner, parent.priority, parent.due_date, $3,
+           COALESCE((SELECT max(position) + 1 FROM project_tasks WHERE parent_task_id = parent.id AND status = $3), 0), $4
+         FROM project_tasks parent WHERE parent.id = $5 AND parent.parent_task_id IS NULL`,
+        [createReadableCode(), title, status, createdBy, parentTaskId],
       )
       if (!result.rowCount) throw new Error("TASK_NOT_FOUND")
       return
