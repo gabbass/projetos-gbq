@@ -27,7 +27,7 @@ As URLs contêm host, porta, banco, usuário, senha e opções TLS. Elas devem s
 Exemplo apenas estrutural:
 
 ```text
-postgresql://USUARIO:SENHA@HOST.neon.tech/BANCO?sslmode=require
+postgresql://USUARIO:SENHA@HOST.neon.tech/BANCO?sslmode=verify-full
 ```
 
 Nunca registre uma URL real no Git, em documentação, logs, capturas de tela ou variáveis com prefixo `NEXT_PUBLIC_`.
@@ -158,7 +158,7 @@ A aplicação continua usando a URL antiga da VPS. Substitua `DATABASE_URL` pela
 
 ### Erro de certificado ou SSL
 
-Confirme que foi usada a URL completa fornecida pelo Neon, incluindo os parâmetros de TLS. Evite remover `sslmode` manualmente.
+Confirme que foi usada a URL completa fornecida pelo Neon, incluindo os parâmetros de TLS. Para manter a validação completa do certificado e evitar avisos de compatibilidade do `pg`, use `sslmode=verify-full`.
 
 ### Muitas conexões
 

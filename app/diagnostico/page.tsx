@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { requireAdministrator } from "@/lib/auth/session"
+import { normalizePostgresConnectionString } from "@/lib/database/connection-string"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -116,7 +117,7 @@ async function checkDatabase(): Promise<DatabaseDiagnostic> {
   }
 
   const client = new Client({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     application_name: "gbq-diagnostico",
     connectionTimeoutMillis: 5_000,
     query_timeout: 5_000,

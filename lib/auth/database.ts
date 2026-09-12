@@ -1,6 +1,7 @@
 import { Pool } from "pg"
 
 import { hashPassword } from "@/lib/auth/password"
+import { normalizePostgresConnectionString } from "@/lib/database/connection-string"
 
 export type AuthUser = {
   id: string
@@ -38,7 +39,7 @@ function getPool() {
   if (!connectionString) throw new Error("DATABASE_URL não configurada")
 
   globalForDb.gbqAuthPool ??= new Pool({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     application_name: "gbq-auth",
     max: 5,
     connectionTimeoutMillis: 5_000,

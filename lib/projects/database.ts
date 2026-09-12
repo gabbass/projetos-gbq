@@ -1,6 +1,8 @@
 import { Pool } from "pg"
 import { randomInt } from "node:crypto"
 
+import { normalizePostgresConnectionString } from "@/lib/database/connection-string"
+
 export type ProjectPriority = "high" | "medium" | "low"
 export type TaskStatus = "todo" | "in_progress" | "waiting" | "done"
 
@@ -90,7 +92,7 @@ function getPool() {
   if (!connectionString) throw new Error("DATABASE_URL não configurada")
 
   globalForProjects.gbqProjectsPool ??= new Pool({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     application_name: "gbq-projects",
     max: 5,
     connectionTimeoutMillis: 5_000,
