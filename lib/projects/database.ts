@@ -436,7 +436,9 @@ export async function listChatData(user: { id: string; role: "admin" | "client" 
       AND r.target_type = CASE WHEN m.task_id IS NULL THEN 'project' ELSE 'task' END
       AND r.target_id = COALESCE(m.task_id, m.project_id)
     WHERE (${access}) AND m.author_id <> $1 AND m.created_at > COALESCE(r.read_at, 'epoch'::timestamptz)
-    GROUP BY target_type, target_id
+    GROUP BY
+      CASE WHEN m.task_id IS NULL THEN 'project' ELSE 'task' END,
+      COALESCE(m.task_id, m.project_id)
   `, [user.id])
   return { messages: messages.rows, unread: unread.rows }
 }
