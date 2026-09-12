@@ -1,27 +1,20 @@
-import { SettingsPanel } from "@/components/settings-panel"
-import { getWorkspaceSettings, listUsers } from "@/lib/auth/database"
+import { AppearanceSettingsPanel } from "@/components/settings-panel"
+import { getWorkspaceSettings } from "@/lib/auth/database"
 import { requireCurrentUser } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
 
 export default async function SettingsPage() {
   const currentUser = await requireCurrentUser()
-  const [users, settings] = await Promise.all([listUsers(), getWorkspaceSettings()])
+  const settings = await getWorkspaceSettings()
 
   return (
-    <SettingsPanel
-      currentUserId={currentUser.id}
+    <AppearanceSettingsPanel
       isAdmin={currentUser.role === "admin"}
-      users={users.map((user) => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        area: user.area,
-        mustChangePassword: user.must_change_password,
-      }))}
       settings={{
-        theme: settings.theme,
+        userTheme: currentUser.theme,
+        siteName: settings.site_name,
+        siteSubtitle: settings.site_subtitle,
         hasLogo: Boolean(settings.logo_type),
         hasFavicon: Boolean(settings.favicon_type),
         version: settings.updated_at.toISOString(),

@@ -11,14 +11,20 @@ import { cn } from "@/lib/utils"
 const outfitHeading = Outfit({ subsets: ["latin"], variable: "--font-heading" })
 const roboto = Roboto({ subsets: ["latin"], variable: "--font-sans" })
 
-export const metadata: Metadata = {
-  title: "GBQ | Gestão de projetos",
-  description: "Sistema de acompanhamento de projetos e gestão à vista.",
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getWorkspaceSettings().catch(() => ({
+    site_name: "GBQ Projetos",
+    site_subtitle: "Gestão à vista",
+  }))
+  return {
+    title: settings.site_name,
+    description: settings.site_subtitle,
+  }
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const [settings, currentUser] = await Promise.all([
-    getWorkspaceSettings().catch(() => ({ theme: "light" as const, logo_type: null, favicon_type: null, updated_at: new Date(0) })),
+    getWorkspaceSettings().catch(() => ({ site_name: "GBQ Projetos", site_subtitle: "Gestão à vista", logo_type: null, favicon_type: null, updated_at: new Date(0) })),
     getCurrentUser().catch(() => null),
   ])
 
@@ -26,7 +32,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang="pt-BR"
       dir="ltr"
-      className={cn("h-full font-sans antialiased", roboto.variable, outfitHeading.variable, settings.theme === "dark" && "dark")}
+      className={cn("h-full font-sans antialiased", roboto.variable, outfitHeading.variable, currentUser?.theme === "dark" && "dark")}
     >
       <body className="min-h-full">
         <AppShell
@@ -37,6 +43,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           } : null}
           hasLogo={Boolean(settings.logo_type)}
           brandingVersion={settings.updated_at.toISOString()}
+          siteName={settings.site_name}
+          siteSubtitle={settings.site_subtitle}
         >
           {children}
         </AppShell>

@@ -10,6 +10,7 @@ export type AuthUser = {
   must_change_password: boolean
   role: UserRole
   area: string
+  theme: "light" | "dark"
   created_at: Date
   updated_at: Date
 }
@@ -17,7 +18,8 @@ export type AuthUser = {
 export type UserRole = "admin" | "client"
 
 export type WorkspaceSettings = {
-  theme: "light" | "dark"
+  site_name: string
+  site_subtitle: string
   logo_type: string | null
   favicon_type: string | null
   updated_at: Date
@@ -51,6 +53,7 @@ async function initializeAuth() {
       must_change_password boolean NOT NULL DEFAULT true,
       role text NOT NULL DEFAULT 'admin',
       area text NOT NULL DEFAULT '',
+      theme text NOT NULL DEFAULT 'light',
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     )
@@ -59,6 +62,8 @@ async function initializeAuth() {
   await pool.query(`
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT '';
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS area text NOT NULL DEFAULT '';
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS theme text NOT NULL DEFAULT 'light';
+    UPDATE app_users SET theme = 'light' WHERE theme NOT IN ('light', 'dark');
     UPDATE app_users SET role = 'client' WHERE role NOT IN ('admin', 'client');
     UPDATE app_users SET name = 'Administrador' WHERE name = '' AND lower(email) = 'admin@gmail.com';
     UPDATE app_users SET area = 'Administração' WHERE area = '' AND lower(email) = 'admin@gmail.com';
@@ -70,6 +75,9 @@ async function initializeAuth() {
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_users_role_check') THEN
         ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('admin', 'client'));
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_users_theme_check') THEN
+        ALTER TABLE app_users ADD CONSTRAINT app_users_theme_check CHECK (theme IN ('light', 'dark'));
+      END IF;
     END $$;
   `)
 
@@ -77,12 +85,19 @@ async function initializeAuth() {
     CREATE TABLE IF NOT EXISTS workspace_settings (
       id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
       theme text NOT NULL DEFAULT 'light' CHECK (theme IN ('light', 'dark')),
+      site_name text NOT NULL DEFAULT 'GBQ Projetos',
+      site_subtitle text NOT NULL DEFAULT 'Gestão à vista',
       logo_data bytea,
       logo_type text,
       favicon_data bytea,
       favicon_type text,
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `)
+
+  await pool.query(`
+    ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS site_name text NOT NULL DEFAULT 'GBQ Projetos';
+    ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS site_subtitle text NOT NULL DEFAULT 'Gestão à vista';
   `)
 
   await pool.query(`INSERT INTO workspace_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`)
@@ -108,7 +123,7 @@ export async function ensureAuthDatabase() {
 export async function findUserByEmail(email: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
-    `SELECT id, name, email, password_hash, must_change_password, role, area, created_at, updated_at
+    `SELECT id, name, email, password_hash, must_change_password, role, area, theme, created_at, updated_at
      FROM app_users WHERE lower(email) = lower($1) LIMIT 1`,
     [email],
   )
@@ -119,7 +134,7 @@ export async function findUserByEmail(email: string) {
 export async function findUserById(userId: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
-    `SELECT id, name, email, password_hash, must_change_password, role, area, created_at, updated_at
+    `SELECT id, name, email, password_hash, must_change_password, role, area, theme, created_at, updated_at
      FROM app_users WHERE id = $1 LIMIT 1`,
     [userId],
   )
@@ -130,7 +145,7 @@ export async function findUserById(userId: string) {
 export async function listUsers() {
   await ensureAuthDatabase()
   const result = await getPool().query<Omit<AuthUser, "password_hash">>(
-    `SELECT id, name, email, must_change_password, role, area, created_at, updated_at
+    `SELECT id, name, email, must_change_password, role, area, theme, created_at, updated_at
      FROM app_users
      ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, lower(name), lower(email)`,
   )
@@ -218,19 +233,20 @@ export async function deleteUser(userId: string) {
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings> {
   await ensureAuthDatabase()
   const result = await getPool().query<WorkspaceSettings>(
-    `SELECT theme, logo_type, favicon_type, updated_at FROM workspace_settings WHERE id = 1`,
+    `SELECT site_name, site_subtitle, logo_type, favicon_type, updated_at FROM workspace_settings WHERE id = 1`,
   )
-  return result.rows[0] ?? { theme: "light", logo_type: null, favicon_type: null, updated_at: new Date(0) }
+  return result.rows[0] ?? { site_name: "GBQ Projetos", site_subtitle: "Gestão à vista", logo_type: null, favicon_type: null, updated_at: new Date(0) }
 }
 
 export async function updateWorkspaceSettings(input: {
-  theme: "light" | "dark"
+  siteName: string
+  siteSubtitle: string
   logo?: { data: Buffer; type: string } | null
   favicon?: { data: Buffer; type: string } | null
 }) {
   await ensureAuthDatabase()
-  const updates = ["theme = $1", "updated_at = now()"]
-  const values: unknown[] = [input.theme]
+  const updates = ["site_name = $1", "site_subtitle = $2", "updated_at = now()"]
+  const values: unknown[] = [input.siteName, input.siteSubtitle]
 
   if (input.logo !== undefined) {
     values.push(input.logo?.data ?? null, input.logo?.type ?? null)
@@ -242,6 +258,14 @@ export async function updateWorkspaceSettings(input: {
   }
 
   await getPool().query(`UPDATE workspace_settings SET ${updates.join(", ")} WHERE id = 1`, values)
+}
+
+export async function updateUserTheme(userId: string, theme: "light" | "dark") {
+  await ensureAuthDatabase()
+  await getPool().query(
+    `UPDATE app_users SET theme = $1, updated_at = now() WHERE id = $2`,
+    [theme, userId],
+  )
 }
 
 export async function getBrandingAsset(asset: "logo" | "favicon") {

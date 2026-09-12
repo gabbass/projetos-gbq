@@ -54,7 +54,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 const items = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/projetos", label: "Projetos", icon: FolderKanban, badge: "12" },
-  { href: "/configuracoes", label: "Configurações", icon: Users },
+  { href: "/equipe", label: "Equipe e acessos", icon: Users },
   { href: "/diagnostico", label: "Diagnóstico", icon: DatabaseZap },
 ]
 
@@ -63,11 +63,15 @@ export function AppShell({
   currentUser,
   hasLogo,
   brandingVersion,
+  siteName,
+  siteSubtitle,
 }: {
   children: ReactNode
   currentUser: { name: string; email: string; role: "admin" | "client" } | null
   hasLogo: boolean
   brandingVersion: string
+  siteName: string
+  siteSubtitle: string
 }) {
   const pathname = usePathname()
 
@@ -80,18 +84,18 @@ export function AppShell({
           <SidebarHeader>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton size="lg" tooltip="GBQ Projetos" asChild>
+                <SidebarMenuButton size="lg" tooltip={siteName} asChild>
                   <Link href="/">
                     {hasLogo ? (
                       <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background">
-                        <Image src={`/api/branding/logo?v=${encodeURIComponent(brandingVersion)}`} alt="Logo GBQ" width={32} height={32} unoptimized className="size-8 object-contain" />
+                        <Image src={`/api/branding/logo?v=${encodeURIComponent(brandingVersion)}`} alt={`Logo de ${siteName}`} width={32} height={32} unoptimized className="size-8 object-contain" />
                       </span>
                     ) : (
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Target className="size-4" /></span>
                     )}
                     <span className="grid flex-1 text-left leading-tight">
-                      <span className="truncate font-heading font-semibold">GBQ Projetos</span>
-                      <span className="truncate text-xs text-muted-foreground">Gestão à vista</span>
+                      <span className="truncate font-heading font-semibold">{siteName}</span>
+                      <span className="truncate text-xs text-muted-foreground">{siteSubtitle}</span>
                     </span>
                   </Link>
                 </SidebarMenuButton>

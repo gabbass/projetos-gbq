@@ -5,7 +5,7 @@ import { BarChart3, CheckCircle2, FolderKanban, ShieldCheck, Target } from "luci
 import { getWorkspaceSettings } from "@/lib/auth/database"
 
 export async function AuthShell({ children }: { children: ReactNode }) {
-  const settings = await getWorkspaceSettings().catch(() => ({ logo_type: null, updated_at: new Date(0) }))
+  const settings = await getWorkspaceSettings().catch(() => ({ site_name: "GBQ Projetos", site_subtitle: "Gestão à vista", logo_type: null, updated_at: new Date(0) }))
   const logo = settings.logo_type ? `/api/branding/logo?v=${encodeURIComponent(settings.updated_at.toISOString())}` : null
 
   return (
@@ -14,13 +14,13 @@ export async function AuthShell({ children }: { children: ReactNode }) {
         <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_20%_20%,white_0,transparent_32%),radial-gradient(circle_at_85%_75%,white_0,transparent_28%)]" />
         <div className="relative flex items-center gap-3">
           {logo ? (
-            <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-white/15 ring-1 ring-white/25"><Image src={logo} alt="Logo GBQ" width={40} height={40} unoptimized className="size-10 object-contain" /></span>
+            <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-white/15 ring-1 ring-white/25"><Image src={logo} alt={`Logo de ${settings.site_name}`} width={40} height={40} unoptimized className="size-10 object-contain" /></span>
           ) : (
             <span className="flex size-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25"><Target className="size-5" /></span>
           )}
           <div>
-            <p className="font-heading text-lg font-semibold">GBQ Projetos</p>
-            <p className="text-sm text-primary-foreground/70">Gestão à vista</p>
+            <p className="font-heading text-lg font-semibold">{settings.site_name}</p>
+            <p className="text-sm text-primary-foreground/70">{settings.site_subtitle}</p>
           </div>
         </div>
 
@@ -55,13 +55,13 @@ export async function AuthShell({ children }: { children: ReactNode }) {
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             {logo ? (
-              <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-background"><Image src={logo} alt="Logo GBQ" width={40} height={40} unoptimized className="size-10 object-contain" /></span>
+              <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-background"><Image src={logo} alt={`Logo de ${settings.site_name}`} width={40} height={40} unoptimized className="size-10 object-contain" /></span>
             ) : (
               <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Target className="size-5" /></span>
             )}
             <div>
-              <p className="font-heading font-semibold">GBQ Projetos</p>
-              <p className="text-xs text-muted-foreground">Gestão à vista</p>
+              <p className="font-heading font-semibold">{settings.site_name}</p>
+              <p className="text-xs text-muted-foreground">{settings.site_subtitle}</p>
             </div>
           </div>
           <div className="rounded-3xl border bg-card p-6 shadow-sm sm:p-8">

@@ -6,11 +6,12 @@ import {
   createUser,
   deleteUser,
   updateUser,
+  updateUserTheme,
   updateWorkspaceSettings,
   type UserRole,
 } from "@/lib/auth/database"
 import { hashPassword } from "@/lib/auth/password"
-import { requireAdministrator } from "@/lib/auth/session"
+import { requireAdministrator, requireCurrentUser } from "@/lib/auth/session"
 
 export type SettingsActionState = {
   status?: "success" | "error"
@@ -63,7 +64,7 @@ export async function createUserAction(
 
   try {
     await createUser({ ...input.value, passwordHash: await hashPassword(password) })
-    revalidatePath("/configuracoes")
+    revalidatePath("/equipe")
     revalidatePath("/", "layout")
     return { status: "success", message: "Usuário cadastrado. A senha deverá ser alterada no primeiro acesso." }
   } catch (error) {
@@ -84,7 +85,7 @@ export async function updateUserAction(
 
   try {
     await updateUser(userId, input.value)
-    revalidatePath("/configuracoes")
+    revalidatePath("/equipe")
     revalidatePath("/", "layout")
     return { status: "success", message: "Dados e permissões atualizados." }
   } catch (error) {
@@ -105,7 +106,7 @@ export async function deleteUserAction(
 
   try {
     await deleteUser(userId)
-    revalidatePath("/configuracoes")
+    revalidatePath("/equipe")
     revalidatePath("/", "layout")
     return { status: "success", message: "Usuário excluído do workspace." }
   } catch (error) {
@@ -127,14 +128,16 @@ export async function updateAppearanceAction(
   formData: FormData,
 ): Promise<SettingsActionState> {
   await requireAdministrator()
-  const theme = textField(formData, "theme", 10)
-  if (theme !== "light" && theme !== "dark") return { status: "error", message: "Selecione um tema válido." }
 
   try {
+    const siteName = textField(formData, "siteName", 80)
+    const siteSubtitle = textField(formData, "siteSubtitle", 120)
+    if (siteName.length < 2) return { status: "error", message: "Informe o nome do site." }
+    if (siteSubtitle.length < 2) return { status: "error", message: "Informe o subtítulo do site." }
     const intent = textField(formData, "intent", 30)
     const logo = intent === "remove-logo" ? null : await imageFromForm(formData, "logo")
     const favicon = intent === "remove-favicon" ? null : await imageFromForm(formData, "favicon")
-    await updateWorkspaceSettings({ theme, logo, favicon })
+    await updateWorkspaceSettings({ siteName, siteSubtitle, logo, favicon })
     revalidatePath("/", "layout")
     revalidatePath("/configuracoes")
     return {
@@ -145,6 +148,24 @@ export async function updateAppearanceAction(
     console.error("Falha ao atualizar aparência:", error)
     if (error instanceof Error && error.message === "INVALID_IMAGE") return { status: "error", message: "Use uma imagem PNG, JPG, WebP, SVG ou ICO." }
     if (error instanceof Error && error.message === "IMAGE_TOO_LARGE") return { status: "error", message: "Cada imagem deve ter no máximo 750 KB." }
+    return { status: "error", message: databaseMessage(error) }
+  }
+}
+
+export async function updateThemeAction(
+  _state: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const user = await requireCurrentUser()
+  const theme = textField(formData, "theme", 10)
+  if (theme !== "light" && theme !== "dark") return { status: "error", message: "Selecione um tema válido." }
+
+  try {
+    await updateUserTheme(user.id, theme)
+    revalidatePath("/", "layout")
+    return { status: "success", message: "Sua preferência de tema foi atualizada." }
+  } catch (error) {
+    console.error("Falha ao atualizar tema:", error)
     return { status: "error", message: databaseMessage(error) }
   }
 }

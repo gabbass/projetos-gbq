@@ -4,7 +4,6 @@ import Image from "next/image"
 import { useActionState } from "react"
 import { useFormStatus } from "react-dom"
 import {
-  ImageIcon,
   LoaderCircle,
   LockKeyhole,
   Moon,
@@ -20,6 +19,7 @@ import {
   createUserAction,
   deleteUserAction,
   updateAppearanceAction,
+  updateThemeAction,
   updateUserAction,
   type SettingsActionState,
 } from "@/app/configuracoes/actions"
@@ -32,7 +32,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type UserItem = {
   id: string
@@ -43,16 +42,19 @@ type UserItem = {
   mustChangePassword: boolean
 }
 
-type SettingsPanelProps = {
+type AppearanceSettings = {
+  userTheme: "light" | "dark"
+  siteName: string
+  siteSubtitle: string
+  hasLogo: boolean
+  hasFavicon: boolean
+  version: string
+}
+
+type TeamAccessPanelProps = {
   users: UserItem[]
   currentUserId: string
   isAdmin: boolean
-  settings: {
-    theme: "light" | "dark"
-    hasLogo: boolean
-    hasFavicon: boolean
-    version: string
-  }
 }
 
 const initialState: SettingsActionState = {}
@@ -172,21 +174,20 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
   )
 }
 
-function AppearanceForm({ settings }: { settings: SettingsPanelProps["settings"] }) {
+function AppearanceForm({ settings }: { settings: AppearanceSettings }) {
   const [state, action] = useActionState(updateAppearanceAction, initialState)
   const version = encodeURIComponent(settings.version)
   return (
     <form action={action} className="grid gap-6">
-      <div className="grid gap-2">
-        <Label htmlFor="theme">Esquema de cores</Label>
-        <Select name="theme" defaultValue={settings.theme}>
-          <SelectTrigger id="theme" className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="light"><Sun />Claro</SelectItem>
-            <SelectItem value="dark"><Moon />Escuro</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">O tema escolhido é aplicado a todos os usuários.</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-2">
+          <Label htmlFor="site-name">Nome do site</Label>
+          <Input id="site-name" name="siteName" defaultValue={settings.siteName} required minLength={2} maxLength={80} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="site-subtitle">Subtítulo</Label>
+          <Input id="site-subtitle" name="siteSubtitle" defaultValue={settings.siteSubtitle} required minLength={2} maxLength={120} />
+        </div>
       </div>
 
       <div className="grid gap-3">
@@ -219,78 +220,109 @@ function AppearanceForm({ settings }: { settings: SettingsPanelProps["settings"]
   )
 }
 
-export function SettingsPanel({ users, currentUserId, isAdmin, settings }: SettingsPanelProps) {
+function ThemeForm({ theme }: { theme: "light" | "dark" }) {
+  const [state, action] = useActionState(updateThemeAction, initialState)
+  return (
+    <form action={action} className="grid gap-5">
+      <div className="grid gap-2">
+        <Label htmlFor="theme">Esquema de cores</Label>
+        <Select name="theme" defaultValue={theme}>
+          <SelectTrigger id="theme" className="w-full"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="light"><Sun />Claro</SelectItem>
+            <SelectItem value="dark"><Moon />Escuro</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Esta escolha vale somente para a sua conta.</p>
+      </div>
+      <ActionFeedback state={state} />
+      <div><SubmitButton>Salvar meu tema</SubmitButton></div>
+    </form>
+  )
+}
+
+export function TeamAccessPanel({ users, currentUserId, isAdmin }: TeamAccessPanelProps) {
   const admins = users.filter((user) => user.role === "admin").length
   const clients = users.length - admins
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Badge variant="secondary" className="mb-3"><ShieldCheck />Administração</Badge>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Configurações</h1>
-        <p className="mt-1 text-muted-foreground">Gerencie a equipe, os acessos e a identidade do workspace.</p>
+        <Badge variant="secondary" className="mb-3"><Users />Workspace</Badge>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Equipe e acessos</h1>
+        <p className="mt-1 text-muted-foreground">Gerencie os usuários e os níveis de acesso ao workspace.</p>
       </div>
 
       {!isAdmin ? (
         <Card size="sm"><CardHeader><CardTitle className="flex items-center gap-2"><LockKeyhole className="size-4" />Acesso somente leitura</CardTitle><CardDescription>Clientes podem consultar estas informações. Alterações são reservadas aos administradores.</CardDescription></CardHeader></Card>
       ) : null}
 
-      <Tabs defaultValue="team">
-        <TabsList>
-          <TabsTrigger value="team"><Users />Equipe e acessos</TabsTrigger>
-          <TabsTrigger value="appearance"><ImageIcon />Aparência</TabsTrigger>
-        </TabsList>
+      <section className="grid gap-4 sm:grid-cols-3">
+        {[["Usuários", users.length], ["Administradores", admins], ["Clientes", clients]].map(([label, value]) => (
+          <Card key={String(label)} size="sm"><CardHeader><CardDescription>{label}</CardDescription><CardTitle className="font-sans text-2xl font-semibold">{value}</CardTitle></CardHeader></Card>
+        ))}
+      </section>
 
-        <TabsContent value="team" className="mt-4 space-y-6">
-          <section className="grid gap-4 sm:grid-cols-3">
-            {[["Usuários", users.length], ["Administradores", admins], ["Clientes", clients]].map(([label, value]) => (
-              <Card key={String(label)} size="sm"><CardHeader><CardDescription>{label}</CardDescription><CardTitle className="font-sans text-2xl font-semibold">{value}</CardTitle></CardHeader></Card>
-            ))}
-          </section>
-
-          <div className={isAdmin ? "grid gap-6 xl:grid-cols-[0.78fr_1.5fr]" : "grid gap-6"}>
-            {isAdmin ? (
-              <Card>
-                <CardHeader><CardTitle>Novo usuário</CardTitle><CardDescription>Cadastre uma pessoa e defina suas permissões.</CardDescription><CardAction><UserPlus className="size-5 text-primary" /></CardAction></CardHeader>
-                <CardContent><CreateUserForm /></CardContent>
-              </Card>
-            ) : null}
-
-            <Card>
-              <CardHeader><CardTitle>Usuários cadastrados</CardTitle><CardDescription>Equipe e permissões atuais da plataforma.</CardDescription><CardAction><Badge variant="outline">{users.length} registros</Badge></CardAction></CardHeader>
-              <CardContent className="overflow-x-auto px-0">
-                <Table>
-                  <TableHeader><TableRow><TableHead className="pl-6">Pessoa</TableHead><TableHead>Área</TableHead><TableHead>Acesso</TableHead>{isAdmin ? <TableHead className="pr-6 text-right">Ações</TableHead> : null}</TableRow></TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="pl-6"><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name, user.email)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{user.email}{user.mustChangePassword ? " · troca de senha pendente" : ""}</p></div></div></TableCell>
-                        <TableCell className="text-muted-foreground">{user.area || "—"}</TableCell>
-                        <TableCell><Badge variant={user.role === "admin" ? "default" : "outline"}>{user.role === "admin" ? "Administrador" : "Cliente"}</Badge></TableCell>
-                        {isAdmin ? <TableCell className="pr-6 text-right"><EditUserSheet user={user} currentUserId={currentUserId} /></TableCell> : null}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="appearance" className="mt-4">
-          <Card className="max-w-2xl">
-            <CardHeader><CardTitle>Identidade visual</CardTitle><CardDescription>Defina logo, favicon e esquema de cores da aplicação.</CardDescription></CardHeader>
-            <CardContent>
-              {isAdmin ? <AppearanceForm settings={settings} /> : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div><p className="text-sm font-medium">Tema atual</p><p className="text-sm text-muted-foreground">{settings.theme === "dark" ? "Escuro" : "Claro"}</p></div>
-                  <div><p className="text-sm font-medium">Identidade</p><p className="text-sm text-muted-foreground">Logo {settings.hasLogo ? "configurada" : "padrão"} · Favicon {settings.hasFavicon ? "configurado" : "padrão"}</p></div>
-                </div>
-              )}
-            </CardContent>
+      <div className={isAdmin ? "grid gap-6 xl:grid-cols-[0.78fr_1.5fr]" : "grid gap-6"}>
+        {isAdmin ? (
+          <Card>
+            <CardHeader><CardTitle>Novo usuário</CardTitle><CardDescription>Cadastre uma pessoa e defina suas permissões.</CardDescription><CardAction><UserPlus className="size-5 text-primary" /></CardAction></CardHeader>
+            <CardContent><CreateUserForm /></CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        ) : null}
+
+        <Card>
+          <CardHeader><CardTitle>Usuários cadastrados</CardTitle><CardDescription>Equipe e permissões atuais da plataforma.</CardDescription><CardAction><Badge variant="outline">{users.length} registros</Badge></CardAction></CardHeader>
+          <CardContent className="overflow-x-auto px-0">
+            <Table>
+              <TableHeader><TableRow><TableHead className="pl-6">Pessoa</TableHead><TableHead>Área</TableHead><TableHead>Acesso</TableHead>{isAdmin ? <TableHead className="pr-6 text-right">Ações</TableHead> : null}</TableRow></TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="pl-6"><div className="flex items-center gap-3"><Avatar><AvatarFallback>{initials(user.name, user.email)}</AvatarFallback></Avatar><div><p className="font-medium">{user.name || "Sem nome"}</p><p className="text-xs text-muted-foreground">{user.email}{user.mustChangePassword ? " · troca de senha pendente" : ""}</p></div></div></TableCell>
+                    <TableCell className="text-muted-foreground">{user.area || "—"}</TableCell>
+                    <TableCell><Badge variant={user.role === "admin" ? "default" : "outline"}>{user.role === "admin" ? "Administrador" : "Cliente"}</Badge></TableCell>
+                    {isAdmin ? <TableCell className="pr-6 text-right"><EditUserSheet user={user} currentUserId={currentUserId} /></TableCell> : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+export function AppearanceSettingsPanel({ isAdmin, settings }: { isAdmin: boolean; settings: AppearanceSettings }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Badge variant="secondary" className="mb-3"><ShieldCheck />Administração</Badge>
+        <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">Configurações</h1>
+        <p className="mt-1 text-muted-foreground">Defina a identidade visual e o esquema de cores da aplicação.</p>
+      </div>
+
+      <div className="grid max-w-5xl gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Meu tema</CardTitle><CardDescription>Escolha como a aplicação aparece para você.</CardDescription></CardHeader>
+          <CardContent><ThemeForm theme={settings.userTheme} /></CardContent>
+        </Card>
+
+        <Card>
+        <CardHeader><CardTitle>Identidade visual</CardTitle><CardDescription>Defina nome, subtítulo, logo e favicon compartilhados pela aplicação.</CardDescription></CardHeader>
+        <CardContent>
+          {isAdmin ? <AppearanceForm settings={settings} /> : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium"><LockKeyhole className="size-4" />Identidade do workspace</div>
+              <p className="text-sm text-muted-foreground">{settings.siteName} · {settings.siteSubtitle}</p>
+              <p className="text-sm text-muted-foreground">Logo {settings.hasLogo ? "configurada" : "padrão"} · Favicon {settings.hasFavicon ? "configurado" : "padrão"}</p>
+              <p className="text-xs text-muted-foreground">Logo e favicon são gerenciados pelos administradores.</p>
+            </div>
+          )}
+        </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
