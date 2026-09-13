@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --conditions react-server --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",
