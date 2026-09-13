@@ -1,6 +1,8 @@
 import { LoginForm } from "@/components/auth-form"
 import { AuthShell } from "@/components/auth-shell"
 
+export const metadata = { title: "Login" }
+
 export default function LoginPage() {
   return (
     <AuthShell>

@@ -46,7 +46,11 @@ export function ConversationTabs({
       <TabsTrigger value="details"><FileText />Detalhes</TabsTrigger>
       <TabsTrigger value="chat" className="relative"><MessageCircle />Chat{unreadCount > 0 ? <Badge className="ms-1 min-w-5 justify-center px-1.5">{unreadCount}</Badge> : null}</TabsTrigger>
     </TabsList>
-    <TabsContent value="details" className="min-h-0 overflow-y-auto pt-4">{details}</TabsContent>
+    <TabsContent value="details" className="min-h-0 pt-4">
+      <ScrollArea className="h-full pe-3">
+        <div className="pb-1">{details}</div>
+      </ScrollArea>
+    </TabsContent>
     <TabsContent value="chat" className="min-h-0 pt-4">
       <ChatPanel targetType={targetType} targetId={targetId} messages={messages} currentUserId={currentUserId} />
     </TabsContent>

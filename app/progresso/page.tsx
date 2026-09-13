@@ -7,6 +7,7 @@ import { requireAdministrator } from "@/lib/auth/session"
 import { listProjects, listTasks } from "@/lib/projects/database"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Progresso" }
 
 export default async function ProgressPage() {
   const user = await requireAdministrator()

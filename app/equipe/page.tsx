@@ -3,6 +3,7 @@ import { listUsers } from "@/lib/auth/database"
 import { requireAdministrator } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Equipe e acessos" }
 
 export default async function TeamAccessPage() {
   const currentUser = await requireAdministrator()

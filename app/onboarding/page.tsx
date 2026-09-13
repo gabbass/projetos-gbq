@@ -5,6 +5,7 @@ import { getWorkspaceSettings } from "@/lib/auth/database"
 import { requireCurrentUser } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Boas-vindas" }
 
 export default async function OnboardingPage({
   searchParams,

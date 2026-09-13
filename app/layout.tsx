@@ -17,7 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
     site_subtitle: "Gestão à vista",
   }))
   return {
-    title: settings.site_name,
+    title: {
+      default: `${settings.site_name} - Visão geral`,
+      template: `${settings.site_name} - %s`,
+    },
     description: settings.site_subtitle,
   }
 }

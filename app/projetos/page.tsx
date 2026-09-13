@@ -4,6 +4,7 @@ import { listUsers } from "@/lib/auth/database"
 import { listChatData, listProjects } from "@/lib/projects/database"
 
 export const dynamic = "force-dynamic"
+export const metadata = { title: "Projetos" }
 
 export default async function ProjectsPage() {
   const user = await requireCurrentUser()

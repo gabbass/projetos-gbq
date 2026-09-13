@@ -33,6 +33,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
@@ -142,16 +143,18 @@ function NewUserSheet() {
   return (
     <Sheet>
       <SheetTrigger asChild><Button><UserPlus />Novo usuário</Button></SheetTrigger>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
+      <SheetContent className="overflow-hidden sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>Novo usuário</SheetTitle>
           <SheetDescription>Cadastre uma pessoa e defina suas permissões.</SheetDescription>
         </SheetHeader>
-        <form action={action} className="grid gap-5 px-6">
-          <UserFields />
-          <ActionFeedback state={state} />
-          <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
-        </form>
+        <ScrollArea className="min-h-0 flex-1">
+          <form action={action} className="grid gap-5 px-6 pb-6">
+            <UserFields />
+            <ActionFeedback state={state} />
+            <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
+          </form>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   )
@@ -180,27 +183,29 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
   return (
     <Sheet>
       <SheetTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Editar ${user.name || user.email}`}><Pencil /></Button></SheetTrigger>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
+      <SheetContent className="overflow-hidden sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>Editar usuário</SheetTitle>
           <SheetDescription>Atualize os dados e o nível de acesso ao workspace.</SheetDescription>
         </SheetHeader>
-        <form action={updateAction} className="grid gap-5 px-6">
-          <UserFields user={user} />
-          <ActionFeedback state={updateState} />
-          <div><SubmitButton>Salvar alterações</SubmitButton></div>
-        </form>
-        <SheetFooter className="mt-8 border-t">
-          <div className="space-y-1">
-            <p className="font-medium">Excluir acesso</p>
-            <p className="text-xs text-muted-foreground">Remove definitivamente este usuário do workspace.</p>
-          </div>
-          <form action={deleteAction}>
-            <SubmitButton variant="destructive" value="delete" disabled={user.id === currentUserId}><Trash2 />Excluir usuário</SubmitButton>
+        <ScrollArea className="min-h-0 flex-1">
+          <form action={updateAction} className="grid gap-5 px-6">
+            <UserFields user={user} />
+            <ActionFeedback state={updateState} />
+            <div><SubmitButton>Salvar alterações</SubmitButton></div>
           </form>
-          {user.id === currentUserId ? <p className="text-xs text-muted-foreground">Seu próprio acesso não pode ser excluído.</p> : null}
-          <ActionFeedback state={deleteState} />
-        </SheetFooter>
+          <SheetFooter className="mt-8 border-t">
+            <div className="space-y-1">
+              <p className="font-medium">Excluir acesso</p>
+              <p className="text-xs text-muted-foreground">Remove definitivamente este usuário do workspace.</p>
+            </div>
+            <form action={deleteAction}>
+              <SubmitButton variant="destructive" value="delete" disabled={user.id === currentUserId}><Trash2 />Excluir usuário</SubmitButton>
+            </form>
+            {user.id === currentUserId ? <p className="text-xs text-muted-foreground">Seu próprio acesso não pode ser excluído.</p> : null}
+            <ActionFeedback state={deleteState} />
+          </SheetFooter>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   )

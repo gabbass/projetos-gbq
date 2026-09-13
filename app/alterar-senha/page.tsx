@@ -3,6 +3,8 @@ import { KeyRound } from "lucide-react"
 import { ChangePasswordForm } from "@/components/auth-form"
 import { AuthShell } from "@/components/auth-shell"
 
+export const metadata = { title: "Alterar senha" }
+
 export default function ChangePasswordPage() {
   return (
     <AuthShell>

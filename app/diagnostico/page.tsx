@@ -29,6 +29,7 @@ import { normalizePostgresConnectionString } from "@/lib/database/connection-str
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const metadata = { title: "Diagnóstico" }
 
 type DatabaseInfo = {
   database: string
