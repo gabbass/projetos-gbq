@@ -5,7 +5,6 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 import {
-  Bell,
   ChartNoAxesColumnIncreasing,
   ChevronDown,
   FolderKanban,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { logoutAction } from "@/app/auth-actions"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -127,12 +127,7 @@ export function AppShell({
 
           <SidebarFooter>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Notificações">
-                  <Bell />
-                  <span>Notificações</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <NotificationBell enabled={Boolean(currentUser)} />
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Configurações">
                   <Link href="/configuracoes">
