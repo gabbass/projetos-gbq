@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useEffect, useRef, useState } from "react"
-import { Bell, Download, FileText, LoaderCircle, MessageCircle, Paperclip, Send } from "lucide-react"
+import { Bell, Download, FileText, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Send, Smartphone } from "lucide-react"
 import Image from "next/image"
 
 import { markChatReadAction, sendChatMessageAction, type ProjectActionState } from "@/app/project-actions"
@@ -12,9 +12,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import type { ChatMessage, ChatTargetType } from "@/lib/projects/database"
+import type { SagazMessage, SagazPage, SagazWhatsappStatus } from "@/lib/sagaz/types"
 
 const initialState: ProjectActionState = {}
 
@@ -24,6 +26,7 @@ export function ConversationTabs({
   messages,
   unread,
   currentUserId,
+  whatsappContact,
   details,
 }: {
   targetType: ChatTargetType
@@ -31,6 +34,7 @@ export function ConversationTabs({
   messages: ChatMessage[]
   unread: number
   currentUserId: string
+  whatsappContact?: string | null
   details: React.ReactNode
 }) {
   const [unreadCount, setUnreadCount] = useState(unread)
@@ -41,10 +45,12 @@ export function ConversationTabs({
     void markChatReadAction(targetType, targetId)
   }
 
+  const normalizedContact = whatsappContact?.replace(/\D/g, "") || null
   return <Tabs defaultValue="details" onValueChange={selectTab} className="min-h-0 flex-1 px-6 pb-6">
-    <TabsList className="grid w-full grid-cols-2">
+    <TabsList className={`grid w-full ${normalizedContact ? "grid-cols-3" : "grid-cols-2"}`}>
       <TabsTrigger value="details"><FileText />Detalhes</TabsTrigger>
       <TabsTrigger value="chat" className="relative"><MessageCircle />Chat{unreadCount > 0 ? <Badge className="ms-1 min-w-5 justify-center px-1.5">{unreadCount}</Badge> : null}</TabsTrigger>
+      {normalizedContact ? <TabsTrigger value="whatsapp"><Smartphone />WhatsApp</TabsTrigger> : null}
     </TabsList>
     <TabsContent value="details" className="min-h-0 pt-4">
       <ScrollArea className="h-full pe-3">
@@ -54,6 +60,7 @@ export function ConversationTabs({
     <TabsContent value="chat" className="min-h-0 pt-4">
       <ChatPanel targetType={targetType} targetId={targetId} messages={messages} currentUserId={currentUserId} />
     </TabsContent>
+    {normalizedContact ? <TabsContent value="whatsapp" className="min-h-0 pt-4"><WhatsappPanel contactWaId={normalizedContact} /></TabsContent> : null}
   </Tabs>
 }
 
@@ -99,6 +106,68 @@ function MessageItem({ message, own }: { message: ChatMessage; own: boolean }) {
     </Card>
   </div>
 }
+
+function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
+  const [messages, setMessages] = useState<SagazMessage[]>([])
+  const [status, setStatus] = useState<SagazWhatsappStatus | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState("")
+  const formRef = useRef<HTMLFormElement>(null)
+
+  async function load(append = false) {
+    if (!append) setLoading(true)
+    setError("")
+    try {
+      const cursor = append && nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : ""
+      const [statusResponse, messagesResponse] = await Promise.all([
+        fetch("/api/integrations/sagaz/status", { cache: "no-store" }),
+        fetch(`/api/integrations/sagaz/conversations/${encodeURIComponent(contactWaId)}/messages?limit=50${cursor}`, { cache: "no-store" }),
+      ])
+      if (!statusResponse.ok || !messagesResponse.ok) throw new Error("UNAVAILABLE")
+      const statusData = await statusResponse.json() as SagazWhatsappStatus
+      const page = await messagesResponse.json() as SagazPage<SagazMessage>
+      setStatus(statusData)
+      setMessages((current) => append ? [...current, ...page.data] : page.data)
+      setNextCursor(page.nextCursor)
+    } catch { setError("Não foi possível carregar o WhatsApp agora.") }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timeout)
+    // A troca do contato recria a fonte remota desta aba.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactWaId])
+
+  async function send(form: FormData) {
+    const text = String(form.get("text") ?? "").trim()
+    if (!text) return
+    setSending(true)
+    setError("")
+    try {
+      const response = await fetch("/api/integrations/sagaz/messages/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: contactWaId, text }) })
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      if (!response.ok) throw new Error(body.error || "SEND_FAILED")
+      formRef.current?.reset()
+      await load()
+    } catch (sendError) { setError(sendError instanceof Error && sendError.message !== "SEND_FAILED" ? sendError.message : "Não foi possível enviar a mensagem agora. Tente novamente.") }
+    finally { setSending(false) }
+  }
+
+  if (loading) return <div className="space-y-3"><SkeletonRows /></div>
+  return <div className="flex min-h-[34rem] flex-col gap-4">
+    <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2"><div className="min-w-0"><p className="text-sm font-medium">{formatPhone(contactWaId)}</p><p className="text-xs text-muted-foreground">{status?.connected ? "WhatsApp conectado" : "WhatsApp desconectado"}</p></div><Button variant="ghost" size="icon-sm" onClick={() => void load()} aria-label="Atualizar WhatsApp"><RefreshCw /></Button></div>
+    <ScrollArea className="h-[23rem] rounded-2xl border bg-muted/20"><div className="space-y-3 p-4">{nextCursor ? <Button variant="ghost" size="sm" className="w-full" onClick={() => void load(true)}>Carregar mensagens anteriores</Button> : null}{messages.length === 0 ? <p className="py-24 text-center text-sm text-muted-foreground">Nenhuma mensagem encontrada.</p> : [...messages].reverse().map((message) => <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}><div className={`max-w-[82%] rounded-2xl border px-3 py-2 ${message.direction === "outbound" ? "border-primary/20 bg-primary/5" : "bg-card"}`}><p className="whitespace-pre-wrap text-sm">{message.text || `Mensagem do tipo ${message.type}`}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatSagazDate(message.createdAt)}{message.status ? ` · ${message.status}` : ""}</p></div></div>)}</div></ScrollArea>
+    <form ref={formRef} action={send} className="grid gap-3"><Textarea name="text" maxLength={4096} placeholder="Responder pelo WhatsApp..." disabled={!status?.connected || sending} /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">O envio é processado pelo Sagaz.</p><Button type="submit" disabled={!status?.connected || sending}>{sending ? <LoaderCircle className="animate-spin" /> : <Send />}{sending ? "Enviando..." : "Enviar"}</Button></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>
+  </div>
+}
+
+function SkeletonRows() { return <>{Array.from({ length: 5 }, (_, index) => <div key={index} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><div className="w-2/3 space-y-2 rounded-2xl border p-3"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-1/2" /></div></div>)}</> }
+function formatPhone(value: string) { return value.length > 4 ? `WhatsApp •••• ${value.slice(-4)}` : "WhatsApp" }
+function formatSagazDate(value: number) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) }
 
 function initials(name: string) {
   return (name || "U").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")

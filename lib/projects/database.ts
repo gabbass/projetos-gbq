@@ -15,6 +15,7 @@ export type Project = {
   client_user_id: string | null
   client_name: string | null
   client_email: string | null
+  client_phone: string | null
   responsible_user_id: string | null
   responsible_name: string | null
   priority: ProjectPriority
@@ -235,7 +236,7 @@ export async function listProjects(user?: { id: string; role: "admin" | "client"
       GROUP BY task.id
     )
     SELECT p.id, p.code, p.name, p.area, p.owner, p.client_user_id, client.name AS client_name,
-      client.email AS client_email, p.responsible_user_id, responsible.name AS responsible_name, p.priority,
+      client.email AS client_email, client.phone AS client_phone, p.responsible_user_id, responsible.name AS responsible_name, p.priority,
       p.deadline::text AS deadline, p.objective, p.created_at, p.updated_at,
       count(task_progress.id)::int AS task_count,
       count(task_progress.id) FILTER (WHERE task_progress.progress = 1)::int AS completed_count,
