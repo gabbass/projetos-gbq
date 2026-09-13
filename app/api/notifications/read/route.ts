@@ -10,4 +10,3 @@ export async function POST(request: Request) {
   const found = await markNotificationRead(user.id, id)
   return found ? Response.json({ success: true }) : Response.json({ error: "Notificação não encontrada." }, { status: 404 })
 }
-

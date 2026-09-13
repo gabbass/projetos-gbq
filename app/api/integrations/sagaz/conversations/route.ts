@@ -14,4 +14,3 @@ export async function GET(request: Request) {
     return Response.json({ error: "Não foi possível carregar as conversas." }, { status })
   }
 }
-

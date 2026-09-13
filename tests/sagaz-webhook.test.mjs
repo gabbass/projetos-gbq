@@ -30,4 +30,3 @@ test("rejeita JSON e payloads conhecidos malformados", () => {
   assert.equal(parseSagazWebhook("{"), null)
   assert.equal(parseSagazWebhook(JSON.stringify({ ...event, data: {} })), null)
 })
-

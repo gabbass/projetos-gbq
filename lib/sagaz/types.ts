@@ -41,4 +41,3 @@ export type SagazMessageStatusEvent = {
 }
 
 export type SagazWebhookEvent = SagazMessageReceivedEvent | SagazMessageStatusEvent
-

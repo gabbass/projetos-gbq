@@ -12,4 +12,3 @@ export async function GET(request: Request) {
   const page = await listNotifications(user.id, { limit, cursor: url.searchParams.get("cursor") ?? undefined })
   return Response.json(page)
 }
-

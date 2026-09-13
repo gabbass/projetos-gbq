@@ -12,4 +12,3 @@ export type AppNotification = {
 }
 
 export type NotificationPage = { data: AppNotification[]; nextCursor: string | null; unreadCount: number }
-

@@ -14,4 +14,3 @@ function sagazError(error: unknown) {
   console.error("[sagaz] Falha ao consultar status", { code: error instanceof SagazApiError ? error.code : "UNKNOWN", status })
   return Response.json({ error: "O WhatsApp está indisponível no momento." }, { status })
 }
-

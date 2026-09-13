@@ -7,4 +7,3 @@ export async function POST() {
   await markAllNotificationsRead(user.id)
   return Response.json({ success: true })
 }
-
