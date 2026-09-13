@@ -27,3 +27,15 @@ pnpm dev
 - Senha temporária: `12345678`
 
 As tabelas de usuários, projetos e tarefas são criadas de forma idempotente no primeiro uso. O primeiro administrador é criado no primeiro login. O sistema exige a definição de uma nova senha antes de liberar o painel. As senhas são armazenadas com `scrypt`, nunca em texto puro.
+
+# Integração Sagaz
+
+O GBQ consome a API server-to-server já existente no `sagaz-bot-v2`. Configure no ambiente do servidor:
+
+```env
+SAGAZ_API_URL=https://sagaz.exemplo.com
+SAGAZ_SERVICE_TOKEN=sgz_live_...
+SAGAZ_WEBHOOK_SECRET=...
+```
+
+Cadastre no Sagaz o webhook `POST https://gbq.exemplo.com/api/integrations/sagaz/webhook` para os eventos `whatsapp.message.received` e `whatsapp.message.status`. Essas variáveis são privadas e não devem usar o prefixo `NEXT_PUBLIC_`.
