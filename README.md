@@ -4,7 +4,7 @@ Sistema de controle de projetos construído com Next.js, com:
 
 - Kanban por projeto com tarefas em A fazer, Em andamento, Aguardando e Concluído
 - CRUD de projetos e tarefas persistido no PostgreSQL
-- progresso dos projetos calculado pela proporção de tarefas concluídas
+- progresso dos projetos calculado pelas tarefas principais, com subtarefas compondo apenas o avanço da tarefa à qual pertencem
 - configurações para cadastro de usuários
 
 ## Executar localmente

@@ -223,18 +223,29 @@ async function ensureProjectsDatabase() {
 export async function listProjects(user?: { id: string; role: "admin" | "client" }): Promise<Project[]> {
   await ensureProjectsDatabase()
   const result = await getPool().query<Project>(`
+    WITH task_progress AS (
+      SELECT task.id, task.project_id,
+        CASE WHEN count(subtask.id) = 0
+          THEN CASE WHEN task.status = 'done' THEN 1.0 ELSE 0.0 END
+          ELSE count(subtask.id) FILTER (WHERE subtask.status = 'done')::numeric / count(subtask.id)
+        END AS progress
+      FROM project_tasks task
+      LEFT JOIN project_tasks subtask ON subtask.parent_task_id = task.id
+      WHERE task.parent_task_id IS NULL
+      GROUP BY task.id
+    )
     SELECT p.id, p.code, p.name, p.area, p.owner, p.client_user_id, client.name AS client_name,
       client.email AS client_email, p.responsible_user_id, responsible.name AS responsible_name, p.priority,
       p.deadline::text AS deadline, p.objective, p.created_at, p.updated_at,
-      count(t.id)::int AS task_count,
-      count(t.id) FILTER (WHERE t.status = 'done')::int AS completed_count,
-      CASE WHEN count(t.id) = 0 THEN 0
-        ELSE round(100.0 * count(t.id) FILTER (WHERE t.status = 'done') / count(t.id))::int
+      count(task_progress.id)::int AS task_count,
+      count(task_progress.id) FILTER (WHERE task_progress.progress = 1)::int AS completed_count,
+      CASE WHEN count(task_progress.id) = 0 THEN 0
+        ELSE round(100.0 * sum(task_progress.progress) / count(task_progress.id))::int
       END AS progress
     FROM projects p
     LEFT JOIN app_users client ON client.id = p.client_user_id
     LEFT JOIN app_users responsible ON responsible.id = p.responsible_user_id
-    LEFT JOIN project_tasks t ON t.project_id = p.id
+    LEFT JOIN task_progress ON task_progress.project_id = p.id
     WHERE ($1::boolean OR p.client_user_id = $2::uuid)
     GROUP BY p.id, client.id, responsible.id
     ORDER BY p.updated_at DESC, lower(p.name)
