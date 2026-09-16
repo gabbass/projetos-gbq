@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import type { ChatMessage, ChatTargetType } from "@/lib/projects/database"
-import type { SagazMessage, SagazPage, SagazWhatsappStatus } from "@/lib/sagaz/types"
+import type { App3Message, App3Page, App3WhatsappStatus } from "@/lib/app3/types"
 
 const initialState: ProjectActionState = {}
 
@@ -108,8 +108,8 @@ function MessageItem({ message, own }: { message: ChatMessage; own: boolean }) {
 }
 
 function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
-  const [messages, setMessages] = useState<SagazMessage[]>([])
-  const [status, setStatus] = useState<SagazWhatsappStatus | null>(null)
+  const [messages, setMessages] = useState<App3Message[]>([])
+  const [status, setStatus] = useState<App3WhatsappStatus | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -122,12 +122,12 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
     try {
       const cursor = append && nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : ""
       const [statusResponse, messagesResponse] = await Promise.all([
-        fetch("/api/integrations/sagaz/status", { cache: "no-store" }),
-        fetch(`/api/integrations/sagaz/conversations/${encodeURIComponent(contactWaId)}/messages?limit=50${cursor}`, { cache: "no-store" }),
+        fetch("/api/integrations/app3/status", { cache: "no-store" }),
+        fetch(`/api/integrations/app3/conversations/${encodeURIComponent(contactWaId)}/messages?limit=50${cursor}`, { cache: "no-store" }),
       ])
       if (!statusResponse.ok || !messagesResponse.ok) throw new Error("UNAVAILABLE")
-      const statusData = await statusResponse.json() as SagazWhatsappStatus
-      const page = await messagesResponse.json() as SagazPage<SagazMessage>
+      const statusData = await statusResponse.json() as App3WhatsappStatus
+      const page = await messagesResponse.json() as App3Page<App3Message>
       setStatus(statusData)
       setMessages((current) => append ? [...current, ...page.data] : page.data)
       setNextCursor(page.nextCursor)
@@ -148,7 +148,7 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
     setSending(true)
     setError("")
     try {
-      const response = await fetch("/api/integrations/sagaz/messages/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: contactWaId, text }) })
+      const response = await fetch("/api/integrations/app3/messages/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: contactWaId, text }) })
       const body = await response.json().catch(() => ({})) as { error?: string }
       if (!response.ok) throw new Error(body.error || "SEND_FAILED")
       formRef.current?.reset()
@@ -160,14 +160,14 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
   if (loading) return <div className="space-y-3"><SkeletonRows /></div>
   return <div className="flex min-h-[34rem] flex-col gap-4">
     <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2"><div className="min-w-0"><p className="text-sm font-medium">{formatPhone(contactWaId)}</p><p className="text-xs text-muted-foreground">{status?.connected ? "WhatsApp conectado" : "WhatsApp desconectado"}</p></div><Button variant="ghost" size="icon-sm" onClick={() => void load()} aria-label="Atualizar WhatsApp"><RefreshCw /></Button></div>
-    <ScrollArea className="h-[23rem] rounded-2xl border bg-muted/20"><div className="space-y-3 p-4">{nextCursor ? <Button variant="ghost" size="sm" className="w-full" onClick={() => void load(true)}>Carregar mensagens anteriores</Button> : null}{messages.length === 0 ? <p className="py-24 text-center text-sm text-muted-foreground">Nenhuma mensagem encontrada.</p> : [...messages].reverse().map((message) => <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}><div className={`max-w-[82%] rounded-2xl border px-3 py-2 ${message.direction === "outbound" ? "border-primary/20 bg-primary/5" : "bg-card"}`}><p className="whitespace-pre-wrap text-sm">{message.text || `Mensagem do tipo ${message.type}`}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatSagazDate(message.createdAt)}{message.status ? ` · ${message.status}` : ""}</p></div></div>)}</div></ScrollArea>
-    <form ref={formRef} action={send} className="grid gap-3"><Textarea name="text" maxLength={4096} placeholder="Responder pelo WhatsApp..." disabled={!status?.connected || sending} /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">O envio é processado pelo Sagaz.</p><Button type="submit" disabled={!status?.connected || sending}>{sending ? <LoaderCircle className="animate-spin" /> : <Send />}{sending ? "Enviando..." : "Enviar"}</Button></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>
+    <ScrollArea className="h-[23rem] rounded-2xl border bg-muted/20"><div className="space-y-3 p-4">{nextCursor ? <Button variant="ghost" size="sm" className="w-full" onClick={() => void load(true)}>Carregar mensagens anteriores</Button> : null}{messages.length === 0 ? <p className="py-24 text-center text-sm text-muted-foreground">Nenhuma mensagem encontrada.</p> : [...messages].reverse().map((message) => <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}><div className={`max-w-[82%] rounded-2xl border px-3 py-2 ${message.direction === "outbound" ? "border-primary/20 bg-primary/5" : "bg-card"}`}><p className="whitespace-pre-wrap text-sm">{message.text || `Mensagem do tipo ${message.type}`}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatApp3Date(message.createdAt)}{message.status ? ` · ${message.status}` : ""}</p></div></div>)}</div></ScrollArea>
+    <form ref={formRef} action={send} className="grid gap-3"><Textarea name="text" maxLength={4096} placeholder="Responder pelo WhatsApp..." disabled={!status?.connected || sending} /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">O envio é processado pelo App3.</p><Button type="submit" disabled={!status?.connected || sending}>{sending ? <LoaderCircle className="animate-spin" /> : <Send />}{sending ? "Enviando..." : "Enviar"}</Button></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>
   </div>
 }
 
 function SkeletonRows() { return <>{Array.from({ length: 5 }, (_, index) => <div key={index} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><div className="w-2/3 space-y-2 rounded-2xl border p-3"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-1/2" /></div></div>)}</> }
 function formatPhone(value: string) { return value.length > 4 ? `WhatsApp •••• ${value.slice(-4)}` : "WhatsApp" }
-function formatSagazDate(value: number) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) }
+function formatApp3Date(value: number) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) }
 
 function initials(name: string) {
   return (name || "U").split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")

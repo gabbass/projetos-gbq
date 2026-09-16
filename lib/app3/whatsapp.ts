@@ -1,5 +1,5 @@
-import { sagazFetch } from "@/lib/sagaz/client"
-import type { SagazConversation, SagazMessage, SagazPage, SagazSendResult, SagazTemplate, SagazWhatsappStatus } from "@/lib/sagaz/types"
+import { app3Fetch } from "@/lib/app3/client"
+import type { App3Conversation, App3Message, App3Page, App3SendResult, App3Template, App3WhatsappStatus } from "@/lib/app3/types"
 
 const API = "/api/integrations/v1/whatsapp"
 
@@ -10,27 +10,27 @@ function pageQuery(input: { limit?: number; cursor?: string } = {}) {
 }
 
 export function getWhatsappStatus() {
-  return sagazFetch<SagazWhatsappStatus>(`${API}/status`)
+  return app3Fetch<App3WhatsappStatus>(`${API}/status`)
 }
 
 export function getWhatsappConversations(input?: { limit?: number; cursor?: string }) {
-  return sagazFetch<SagazPage<SagazConversation>>(`${API}/conversations?${pageQuery(input)}`)
+  return app3Fetch<App3Page<App3Conversation>>(`${API}/conversations?${pageQuery(input)}`)
 }
 
 export function getWhatsappMessages(contactWaId: string, input?: { limit?: number; cursor?: string }) {
-  return sagazFetch<SagazPage<SagazMessage>>(`${API}/conversations/${encodeURIComponent(contactWaId)}/messages?${pageQuery(input)}`)
+  return app3Fetch<App3Page<App3Message>>(`${API}/conversations/${encodeURIComponent(contactWaId)}/messages?${pageQuery(input)}`)
 }
 
 export function getWhatsappTemplates(cursor?: string) {
-  return sagazFetch<SagazPage<SagazTemplate>>(`${API}/templates${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`)
+  return app3Fetch<App3Page<App3Template>>(`${API}/templates${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`)
 }
 
 export function sendWhatsappText(input: { to: string; text: string }) {
-  return sagazFetch<SagazSendResult>(`${API}/messages/text`, jsonPost(input))
+  return app3Fetch<App3SendResult>(`${API}/messages/text`, jsonPost(input))
 }
 
 export function sendWhatsappTemplate(input: { to: string; templateName: string; language?: string }) {
-  return sagazFetch<SagazSendResult>(`${API}/messages/template`, jsonPost(input))
+  return app3Fetch<App3SendResult>(`${API}/messages/template`, jsonPost(input))
 }
 
 export function sendWhatsappMedia(input: { to: string; file: File; caption?: string }) {
@@ -38,7 +38,7 @@ export function sendWhatsappMedia(input: { to: string; file: File; caption?: str
   form.set("to", input.to)
   form.set("file", input.file)
   if (input.caption) form.set("caption", input.caption)
-  return sagazFetch<SagazSendResult>(`${API}/messages/media`, { method: "POST", body: form })
+  return app3Fetch<App3SendResult>(`${API}/messages/media`, { method: "POST", body: form })
 }
 
 function jsonPost(body: unknown): RequestInit {

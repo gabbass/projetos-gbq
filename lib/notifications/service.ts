@@ -1,7 +1,7 @@
 import { claimIntegrationEvent, createEventNotifications, finishIntegrationEvent, resolveWhatsappRecipients } from "@/lib/notifications/repository"
-import type { SagazWebhookEvent } from "@/lib/sagaz/types"
+import type { App3WebhookEvent } from "@/lib/app3/types"
 
-export async function processSagazWebhookEvent(event: SagazWebhookEvent) {
+export async function processApp3WebhookEvent(event: App3WebhookEvent) {
   if (!await claimIntegrationEvent(event.id, event.event)) return { duplicate: true }
   try {
     if (event.event === "whatsapp.message.received") {

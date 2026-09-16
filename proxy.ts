@@ -8,10 +8,10 @@ export function proxy(request: NextRequest) {
   const isLogin = pathname === "/login"
   const isPasswordChange = pathname === "/alterar-senha"
   const isOnboarding = pathname === "/onboarding"
-  const isSagazWebhook = pathname === "/api/integrations/sagaz/webhook"
+  const isApp3Webhook = pathname === "/api/integrations/app3/webhook"
   const needsOnboarding = session?.onboardingCompleted === false
 
-  if (isSagazWebhook) return NextResponse.next()
+  if (isApp3Webhook) return NextResponse.next()
 
   if (!session && !isLogin) {
     return NextResponse.redirect(new URL("/login", request.url))
