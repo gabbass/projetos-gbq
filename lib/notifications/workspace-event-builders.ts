@@ -1,0 +1,112 @@
+import type { ProjectNotificationContext, TaskNotificationContext, TaskStatus } from "../projects/database.ts"
+
+export type NotificationRecipient = { id: string; name: string; phone: string }
+
+export type WorkspaceNotificationEvent = {
+  kind: "task_created" | "task_updated" | "task_status_changed" | "project_updated" | "task_message_created"
+  recipient: NotificationRecipient
+  actorId: string
+  projectId: string
+  title: string
+  body: string
+  metadata: Record<string, unknown>
+}
+
+const statusLabels: Record<TaskStatus, string> = { todo: "A fazer", in_progress: "Em andamento", waiting: "Aguardando", done: "Concluído" }
+const fieldLabels: Record<string, string> = {
+  name: "nome", area: "área", client: "cliente", responsible: "responsável", priority: "prioridade",
+  deadline: "prazo", objective: "objetivo", title: "título", description: "descrição", owner: "responsável", dueDate: "prazo",
+}
+
+export function clientRecipient(context: ProjectNotificationContext | TaskNotificationContext) { return context.client }
+export function messageRecipient(context: TaskNotificationContext, actorRole: "admin" | "client") { return actorRole === "client" ? context.responsible : context.client }
+
+export function taskCreatedEvent(context: TaskNotificationContext, actorId: string): WorkspaceNotificationEvent | null {
+  const recipient = clientRecipient(context)
+  if (!recipient || recipient.id === actorId) return null
+  const item = context.parentTaskId ? "Subtarefa" : "Tarefa"
+  return {
+    kind: "task_created", recipient, actorId, projectId: context.projectId,
+    title: `${item} criada em ${context.projectName}`,
+    body: `${item} #${context.taskCode} — ${context.taskTitle}\nStatus: ${statusLabels[context.status]}`,
+    metadata: taskMetadata(context),
+  }
+}
+
+export function taskChangedEvent(input: { before: TaskNotificationContext; current: TaskNotificationContext; actorId: string }): WorkspaceNotificationEvent | null {
+  const recipient = clientRecipient(input.current)
+  if (!recipient || recipient.id === input.actorId) return null
+  const statusChanged = input.before.status !== input.current.status
+  const changes = changedTaskFields(input.before, input.current)
+  if (!statusChanged && !changes.length) return null
+  const item = input.current.parentTaskId ? "Subtarefa" : "Tarefa"
+  const lines = [`${item} #${input.current.taskCode} — ${input.current.taskTitle}`]
+  if (statusChanged) lines.push(`Status: ${statusLabels[input.before.status]} → ${statusLabels[input.current.status]}`)
+  if (changes.length) lines.push(`Alterações: ${joinLabels(changes)}`)
+  return {
+    kind: statusChanged ? "task_status_changed" : "task_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
+    title: `${statusChanged ? "Status alterado" : `${item} atualizada`} em ${input.current.projectName}`,
+    body: lines.join("\n"), metadata: { ...taskMetadata(input.current), changes: statusChanged ? ["status", ...changes] : changes },
+  }
+}
+
+export function projectChangedEvent(input: { before: ProjectNotificationContext; current: ProjectNotificationContext; actorId: string }): WorkspaceNotificationEvent | null {
+  const recipient = clientRecipient(input.current)
+  if (!recipient || recipient.id === input.actorId) return null
+  const changes = changedProjectFields(input.before, input.current)
+  if (!changes.length) return null
+  return {
+    kind: "project_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
+    title: `Projeto #${input.current.projectCode} atualizado`, body: `${input.current.projectName}\nAlterações: ${joinLabels(changes)}`,
+    metadata: { projectId: input.current.projectId, projectCode: input.current.projectCode, changes },
+  }
+}
+
+export function taskMessageEvent(input: { context: TaskNotificationContext; actor: { id: string; name: string; role: "admin" | "client" }; body: string; attachmentName?: string }): WorkspaceNotificationEvent | null {
+  const recipient = messageRecipient(input.context, input.actor.role)
+  if (!recipient || recipient.id === input.actor.id) return null
+  return {
+    kind: "task_message_created", recipient, actorId: input.actor.id, projectId: input.context.projectId,
+    title: `Nova mensagem na tarefa #${input.context.taskCode}`,
+    body: `${input.context.taskTitle}\n${input.actor.name}: ${messagePreview(input.body, input.attachmentName)}\nProjeto: ${input.context.projectName}`,
+    metadata: { ...taskMetadata(input.context), authorId: input.actor.id, authorName: input.actor.name },
+  }
+}
+
+function taskMetadata(context: TaskNotificationContext) {
+  return { projectId: context.projectId, projectCode: context.projectCode, taskId: context.taskId, taskCode: context.taskCode, parentTaskId: context.parentTaskId }
+}
+
+function changedTaskFields(before: TaskNotificationContext, current: TaskNotificationContext) {
+  const fields: string[] = []
+  if (before.taskTitle !== current.taskTitle) fields.push("title")
+  if (before.description !== current.description) fields.push("description")
+  if (before.owner !== current.owner) fields.push("owner")
+  if (before.taskPriority !== current.taskPriority) fields.push("priority")
+  if (before.dueDate !== current.dueDate) fields.push("dueDate")
+  return fields
+}
+
+function changedProjectFields(before: ProjectNotificationContext, current: ProjectNotificationContext) {
+  const fields: string[] = []
+  if (before.projectName !== current.projectName) fields.push("name")
+  if (before.area !== current.area) fields.push("area")
+  if (before.client?.id !== current.client?.id) fields.push("client")
+  if (before.responsible?.id !== current.responsible?.id) fields.push("responsible")
+  if (before.projectPriority !== current.projectPriority) fields.push("priority")
+  if (before.deadline !== current.deadline) fields.push("deadline")
+  if (before.objective !== current.objective) fields.push("objective")
+  return fields
+}
+
+function joinLabels(fields: string[]) { return fields.map((field) => fieldLabels[field] ?? field).join(", ") }
+function messagePreview(body: string, attachmentName?: string) {
+  const value = body.trim() || (attachmentName ? `Anexo: ${attachmentName}` : "Nova mensagem")
+  return value.length > 180 ? `${value.slice(0, 177)}...` : value
+}
+
+export function normalizeWhatsappPhone(value: string) {
+  const digits = value.replace(/\D/g, "")
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`
+  return digits.length >= 12 && digits.length <= 15 ? digits : ""
+}

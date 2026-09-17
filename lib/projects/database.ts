@@ -66,6 +66,32 @@ export type ChatUnread = {
   count: number
 }
 
+export type NotificationContact = { id: string; name: string; phone: string }
+
+export type ProjectNotificationContext = {
+  projectId: string
+  projectCode: string
+  projectName: string
+  area: string
+  projectPriority: ProjectPriority
+  deadline: string | null
+  objective: string
+  client: NotificationContact | null
+  responsible: NotificationContact | null
+}
+
+export type TaskNotificationContext = ProjectNotificationContext & {
+  taskId: string
+  taskCode: string
+  parentTaskId: string | null
+  taskTitle: string
+  description: string
+  owner: string
+  taskPriority: ProjectPriority
+  dueDate: string | null
+  status: TaskStatus
+}
+
 const CODE_LETTERS = "ACDEHJKMNPQRTUVWXY"
 const CODE_DIGITS = "347"
 const CODE_ALPHABET = `${CODE_LETTERS}${CODE_DIGITS}`
@@ -328,13 +354,14 @@ export async function createTask(input: {
   await ensureProjectsDatabase()
   for (;;) {
     try {
-      await getPool().query(
+      const result = await getPool().query<{ id: string }>(
         `INSERT INTO project_tasks (code, project_id, title, description, owner, priority, due_date, status, position, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-           COALESCE((SELECT max(position) + 1 FROM project_tasks WHERE project_id = $2 AND status = $8), 0), $9)`,
+           COALESCE((SELECT max(position) + 1 FROM project_tasks WHERE project_id = $2 AND status = $8), 0), $9)
+         RETURNING id`,
         [createReadableCode(), input.projectId, input.title, input.description, input.owner, input.priority, input.dueDate, input.status, input.createdBy],
       )
-      return
+      return result.rows[0].id
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "23505")) throw error
     }
@@ -379,15 +406,16 @@ export async function createSubtask(parentTaskId: string, title: string, created
   await ensureProjectsDatabase()
   for (;;) {
     try {
-      const result = await getPool().query(
+      const result = await getPool().query<{ id: string }>(
         `INSERT INTO project_tasks (code, project_id, parent_task_id, title, description, owner, priority, due_date, status, position, created_by)
          SELECT $1, parent.project_id, parent.id, $2, '', parent.owner, parent.priority, parent.due_date, $3,
            COALESCE((SELECT max(position) + 1 FROM project_tasks WHERE parent_task_id = parent.id AND status = $3), 0), $4
-         FROM project_tasks parent WHERE parent.id = $5 AND parent.parent_task_id IS NULL`,
+         FROM project_tasks parent WHERE parent.id = $5 AND parent.parent_task_id IS NULL
+         RETURNING id`,
         [createReadableCode(), title, status, createdBy, parentTaskId],
       )
       if (!result.rowCount) throw new Error("TASK_NOT_FOUND")
-      return
+      return result.rows[0].id
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "23505")) throw error
     }
@@ -401,6 +429,82 @@ export async function updateSubtaskStatus(subtaskId: string, status: TaskStatus)
     [status, subtaskId],
   )
   if (!result.rowCount) throw new Error("TASK_NOT_FOUND")
+}
+
+export async function getProjectNotificationContext(projectId: string): Promise<ProjectNotificationContext> {
+  await ensureProjectsDatabase()
+  const result = await getPool().query<{
+    project_id: string; project_code: string; project_name: string; area: string; priority: ProjectPriority; deadline: string | null; objective: string
+    client_id: string | null; client_name: string | null; client_phone: string | null
+    responsible_id: string | null; responsible_name: string | null; responsible_phone: string | null
+  }>(`
+    SELECT p.id project_id, p.code project_code, p.name project_name, p.area, p.priority,
+      p.deadline::text deadline, p.objective,
+      client.id client_id, client.name client_name, client.phone client_phone,
+      responsible.id responsible_id, responsible.name responsible_name, responsible.phone responsible_phone
+    FROM projects p
+    LEFT JOIN app_users client ON client.id = p.client_user_id
+    LEFT JOIN app_users responsible ON responsible.id = p.responsible_user_id
+    WHERE p.id = $1
+  `, [projectId])
+  const row = result.rows[0]
+  if (!row) throw new Error("PROJECT_NOT_FOUND")
+  return {
+    projectId: row.project_id,
+    projectCode: row.project_code,
+    projectName: row.project_name,
+    area: row.area,
+    projectPriority: row.priority,
+    deadline: row.deadline,
+    objective: row.objective,
+    client: row.client_id ? { id: row.client_id, name: row.client_name ?? "Cliente", phone: row.client_phone ?? "" } : null,
+    responsible: row.responsible_id ? { id: row.responsible_id, name: row.responsible_name ?? "Responsável", phone: row.responsible_phone ?? "" } : null,
+  }
+}
+
+export async function getTaskNotificationContext(taskId: string): Promise<TaskNotificationContext> {
+  await ensureProjectsDatabase()
+  const result = await getPool().query<{
+    task_id: string; task_code: string; parent_task_id: string | null; task_title: string; description: string; owner: string
+    due_date: string | null; status: TaskStatus; task_priority: ProjectPriority
+    project_id: string; project_code: string; project_name: string; area: string; project_priority: ProjectPriority; deadline: string | null; objective: string
+    client_id: string | null; client_name: string | null; client_phone: string | null
+    responsible_id: string | null; responsible_name: string | null; responsible_phone: string | null
+  }>(`
+    SELECT t.id task_id, t.code task_code, t.parent_task_id, t.title task_title, t.description, t.owner,
+      t.due_date::text due_date, t.status, t.priority task_priority,
+      p.id project_id, p.code project_code, p.name project_name, p.area, p.priority project_priority,
+      p.deadline::text deadline, p.objective,
+      client.id client_id, client.name client_name, client.phone client_phone,
+      responsible.id responsible_id, responsible.name responsible_name, responsible.phone responsible_phone
+    FROM project_tasks t
+    JOIN projects p ON p.id = t.project_id
+    LEFT JOIN app_users client ON client.id = p.client_user_id
+    LEFT JOIN app_users responsible ON responsible.id = p.responsible_user_id
+    WHERE t.id = $1
+  `, [taskId])
+  const row = result.rows[0]
+  if (!row) throw new Error("TASK_NOT_FOUND")
+  return {
+    projectId: row.project_id,
+    projectCode: row.project_code,
+    projectName: row.project_name,
+    area: row.area,
+    projectPriority: row.project_priority,
+    deadline: row.deadline,
+    objective: row.objective,
+    client: row.client_id ? { id: row.client_id, name: row.client_name ?? "Cliente", phone: row.client_phone ?? "" } : null,
+    responsible: row.responsible_id ? { id: row.responsible_id, name: row.responsible_name ?? "Responsável", phone: row.responsible_phone ?? "" } : null,
+    taskId: row.task_id,
+    taskCode: row.task_code,
+    parentTaskId: row.parent_task_id,
+    taskTitle: row.task_title,
+    description: row.description,
+    owner: row.owner,
+    taskPriority: row.task_priority,
+    dueDate: row.due_date,
+    status: row.status,
+  }
 }
 
 async function resolveConversation(user: { id: string; role: "admin" | "client" }, targetType: ChatTargetType, targetId: string) {
@@ -462,14 +566,16 @@ export async function addChatMessage(user: { id: string; role: "admin" | "client
   attachment?: { name: string; type: string; size: number; data: Buffer }
 }) {
   const projectId = await resolveConversation(user, input.targetType, input.targetId)
-  await getPool().query(
+  const result = await getPool().query<{ id: string }>(
     `INSERT INTO project_chat_messages
       (project_id, task_id, author_id, body, attachment_name, attachment_type, attachment_size, attachment_data)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id`,
     [projectId, input.targetType === "task" ? input.targetId : null, user.id, input.body,
       input.attachment?.name ?? null, input.attachment?.type ?? null, input.attachment?.size ?? null,
       input.attachment?.data ?? null],
   )
+  return result.rows[0].id
 }
 
 export async function markConversationRead(user: { id: string; role: "admin" | "client" }, targetType: ChatTargetType, targetId: string) {

@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
 
 import {
   addChatMessage,
@@ -9,6 +10,8 @@ import {
   createTask,
   deleteProject,
   deleteTask,
+  getProjectNotificationContext,
+  getTaskNotificationContext,
   markConversationRead,
   moveTask,
   updateProject,
@@ -19,6 +22,14 @@ import {
   type TaskStatus,
 } from "@/lib/projects/database"
 import { requireAdministrator, requireCurrentUser } from "@/lib/auth/session"
+import {
+  projectChangedEvent,
+  taskChangedEvent,
+  taskCreatedEvent,
+  taskMessageEvent,
+  type WorkspaceNotificationEvent,
+} from "@/lib/notifications/workspace-event-builders"
+import { deliverWorkspaceNotification } from "@/lib/notifications/workspace-events"
 
 export type ProjectActionState = { status?: "success" | "error"; message?: string }
 
@@ -41,6 +52,17 @@ function refreshProjectViews() {
   revalidatePath("/")
   revalidatePath("/projetos")
   revalidatePath("/progresso")
+}
+
+function scheduleNotification(event: WorkspaceNotificationEvent | null) {
+  if (!event) return
+  after(async () => {
+    try {
+      await deliverWorkspaceNotification(event)
+    } catch (error) {
+      console.error("Falha ao entregar notificação do workspace:", { kind: event.kind, projectId: event.projectId, error })
+    }
+  })
 }
 
 function errorMessage(error: unknown) {
@@ -95,12 +117,15 @@ export async function createProjectAction(_state: ProjectActionState, formData: 
 }
 
 export async function updateProjectAction(projectId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  await requireAdministrator()
+  const user = await requireAdministrator()
   if (!uuidPattern.test(projectId)) return { status: "error", message: "Projeto inválido." }
   const input = projectInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
   try {
+    const before = await getProjectNotificationContext(projectId)
     await updateProject(projectId, input.value)
+    const current = await getProjectNotificationContext(projectId)
+    scheduleNotification(projectChangedEvent({ before, current, actorId: user.id }))
     refreshProjectViews()
     return { status: "success", message: "Projeto atualizado." }
   } catch (error) {
@@ -130,7 +155,9 @@ export async function createTaskAction(_state: ProjectActionState, formData: For
   const input = taskInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
   try {
-    await createTask({ projectId, ...input.value, createdBy: user.id })
+    const taskId = await createTask({ projectId, ...input.value, createdBy: user.id })
+    const context = await getTaskNotificationContext(taskId)
+    scheduleNotification(taskCreatedEvent(context, user.id))
     refreshProjectViews()
     return { status: "success", message: "Tarefa criada com sucesso." }
   } catch (error) {
@@ -150,7 +177,9 @@ export async function createBoardItemAction(status: TaskStatus, _state: ProjectA
     if (!uuidPattern.test(parentTaskId)) return { status: "error", message: "Selecione a tarefa principal." }
     if (title.length < 2) return { status: "error", message: "Informe o título da subtarefa." }
     try {
-      await createSubtask(parentTaskId, title, user.id, status)
+      const taskId = await createSubtask(parentTaskId, title, user.id, status)
+      const context = await getTaskNotificationContext(taskId)
+      scheduleNotification(taskCreatedEvent(context, user.id))
       refreshProjectViews()
       return { status: "success", message: "Subtarefa criada com sucesso." }
     } catch (error) {
@@ -165,7 +194,9 @@ export async function createBoardItemAction(status: TaskStatus, _state: ProjectA
   const input = taskInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
   try {
-    await createTask({ projectId, ...input.value, status, createdBy: user.id })
+    const taskId = await createTask({ projectId, ...input.value, status, createdBy: user.id })
+    const context = await getTaskNotificationContext(taskId)
+    scheduleNotification(taskCreatedEvent(context, user.id))
     refreshProjectViews()
     return { status: "success", message: "Tarefa criada com sucesso." }
   } catch (error) {
@@ -175,12 +206,15 @@ export async function createBoardItemAction(status: TaskStatus, _state: ProjectA
 }
 
 export async function updateTaskAction(taskId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {
-  await requireAdministrator()
+  const user = await requireAdministrator()
   if (!uuidPattern.test(taskId)) return { status: "error", message: "Tarefa inválida." }
   const input = taskInput(formData)
   if ("error" in input) return { status: "error", message: input.error }
   try {
+    const before = await getTaskNotificationContext(taskId)
     await updateTask(taskId, input.value)
+    const current = await getTaskNotificationContext(taskId)
+    scheduleNotification(taskChangedEvent({ before, current, actorId: user.id }))
     refreshProjectViews()
     return { status: "success", message: "Tarefa atualizada." }
   } catch (error) {
@@ -190,10 +224,13 @@ export async function updateTaskAction(taskId: string, _state: ProjectActionStat
 }
 
 export async function moveTaskAction(taskId: string, status: TaskStatus): Promise<ProjectActionState> {
-  await requireAdministrator()
+  const user = await requireAdministrator()
   if (!uuidPattern.test(taskId) || !statuses.has(status)) return { status: "error", message: "Movimentação inválida." }
   try {
+    const before = await getTaskNotificationContext(taskId)
     await moveTask(taskId, status)
+    const current = await getTaskNotificationContext(taskId)
+    scheduleNotification(taskChangedEvent({ before, current, actorId: user.id }))
     refreshProjectViews()
     return { status: "success", message: "Tarefa movida." }
   } catch (error) {
@@ -222,7 +259,9 @@ export async function createSubtaskAction(parentTaskId: string, _state: ProjectA
   const title = text(formData, "subtaskTitle", 160)
   if (title.length < 2) return { status: "error", message: "Informe o título da subtarefa." }
   try {
-    await createSubtask(parentTaskId, title, user.id)
+    const taskId = await createSubtask(parentTaskId, title, user.id)
+    const context = await getTaskNotificationContext(taskId)
+    scheduleNotification(taskCreatedEvent(context, user.id))
     refreshProjectViews()
     return { status: "success", message: "Subtarefa criada." }
   } catch (error) {
@@ -232,9 +271,12 @@ export async function createSubtaskAction(parentTaskId: string, _state: ProjectA
 }
 
 export async function updateSubtaskStatusAction(subtaskId: string, status: TaskStatus) {
-  await requireAdministrator()
+  const user = await requireAdministrator()
   if (!uuidPattern.test(subtaskId) || !statuses.has(status)) return
+  const before = await getTaskNotificationContext(subtaskId)
   await updateSubtaskStatus(subtaskId, status)
+  const current = await getTaskNotificationContext(subtaskId)
+  scheduleNotification(taskChangedEvent({ before, current, actorId: user.id }))
   refreshProjectViews()
 }
 
@@ -247,6 +289,7 @@ export async function sendChatMessageAction(targetType: ChatTargetType, targetId
   if (!body && !file) return { status: "error", message: "Escreva uma mensagem ou selecione um arquivo." }
   if (file && file.size > maxAttachmentSize) return { status: "error", message: "O arquivo deve ter no máximo 10 MB." }
   try {
+    const notificationContext = targetType === "task" ? await getTaskNotificationContext(targetId) : null
     await addChatMessage(user, {
       targetType,
       targetId,
@@ -258,6 +301,14 @@ export async function sendChatMessageAction(targetType: ChatTargetType, targetId
         data: Buffer.from(await file.arrayBuffer()),
       } : undefined,
     })
+    if (notificationContext) {
+      scheduleNotification(taskMessageEvent({
+        context: notificationContext,
+        actor: { id: user.id, name: user.name.trim() || user.email, role: user.role },
+        body,
+        attachmentName: file?.name,
+      }))
+    }
     refreshProjectViews()
     return { status: "success", message: "Mensagem enviada." }
   } catch (error) {

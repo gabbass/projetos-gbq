@@ -108,6 +108,15 @@ export async function createEventNotifications(input: { externalEventId: string;
   } finally { client.release() }
 }
 
+export async function createWorkspaceNotification(input: { externalEventId: string; userId: string; title: string; body: string; projectId: string; metadata: Record<string, unknown> }) {
+  await ensureNotificationsDatabase()
+  await getPool().query(`
+    INSERT INTO notifications (user_id, external_event_id, type, title, body, href, metadata_json)
+    VALUES ($1, $2, 'system', $3, $4, $5, $6::jsonb)
+    ON CONFLICT (external_event_id, user_id) WHERE external_event_id IS NOT NULL DO NOTHING
+  `, [input.userId, input.externalEventId, input.title, input.body, `/projetos?project=${encodeURIComponent(input.projectId)}`, JSON.stringify(input.metadata)])
+}
+
 async function insertNotification(client: PoolClient, input: { externalEventId: string; recipient: { user_id: string; project_id: string | null; project_name: string | null; contact_name: string | null }; type: NotificationType; title: string; body: string; metadata: Record<string, unknown> }) {
   const href = input.recipient.project_id ? `/projetos?project=${encodeURIComponent(input.recipient.project_id)}` : "/projetos"
   await client.query(`
