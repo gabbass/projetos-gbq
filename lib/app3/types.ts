@@ -25,6 +25,10 @@ export type App3Message = {
 export type App3Template = { id: string; name: string; language: string; status: string; category: string }
 export type App3Page<T> = { data: T[]; nextCursor: string | null }
 export type App3SendResult = { success: true; message: { id: string; providerMessageId: string | null } }
+export type App3TemplateProvisionResult = {
+  ready: boolean
+  templates: Array<{ name: string; id: string; status: string; created: boolean }>
+}
 
 export type App3MessageReceivedEvent = {
   id: string

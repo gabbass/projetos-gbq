@@ -48,12 +48,16 @@ test("criação identifica projeto, código e título da tarefa", () => {
   assert.equal(event?.recipient.id, client.id)
   assert.match(event?.title ?? "", /Implantação GBQ/)
   assert.match(event?.body ?? "", /#T3CDEF — Configurar domínio/)
+  assert.equal(event?.templateName, "gbq_tarefa_criada_v1")
+  assert.deepEqual(event?.templateParameters, ["Implantação GBQ", "T3CDEF", "Configurar domínio", "Em andamento"])
 })
 
 test("mudança de status informa estado anterior e novo sem duplicar evento de edição", () => {
   const event = taskChangedEvent({ before: taskContext(), current: taskContext({ status: "done" }), actorId: "admin-1" })
   assert.equal(event?.kind, "task_status_changed")
   assert.match(event?.body ?? "", /Em andamento → Concluído/)
+  assert.equal(event?.templateName, "gbq_status_tarefa_v1")
+  assert.deepEqual(event?.templateParameters, ["Implantação GBQ", "T3CDEF", "Configurar domínio", "Em andamento", "Concluído"])
 })
 
 test("edição lista somente campos realmente alterados e ignora ausência de mudanças", () => {
@@ -61,12 +65,14 @@ test("edição lista somente campos realmente alterados e ignora ausência de mu
   const event = taskChangedEvent({ before: taskContext(), current: taskContext({ owner: "Nova pessoa", dueDate: null }), actorId: "admin-1" })
   assert.equal(event?.kind, "task_updated")
   assert.match(event?.body ?? "", /responsável, prazo/)
+  assert.equal(event?.templateName, "gbq_tarefa_atualizada_v1")
 })
 
 test("alteração de projeto informa os campos modificados", () => {
   const event = projectChangedEvent({ before: project(), current: project({ projectPriority: "high", objective: "Novo objetivo" }), actorId: "admin-1" })
   assert.equal(event?.kind, "project_updated")
   assert.match(event?.body ?? "", /prioridade, objetivo/)
+  assert.equal(event?.templateName, "gbq_projeto_atualizado_v1")
 })
 
 test("normaliza celulares brasileiros para o formato internacional do WhatsApp", () => {
@@ -80,6 +86,8 @@ test("mensagem em tarefa identifica a tarefa e notifica a contraparte, nunca o a
   assert.equal(fromAdmin?.recipient.id, client.id)
   assert.match(fromAdmin?.title ?? "", /#T3CDEF/)
   assert.match(fromAdmin?.body ?? "", /Configurar domínio/)
+  assert.equal(fromAdmin?.templateName, "gbq_mensagem_tarefa_v1")
+  assert.deepEqual(fromAdmin?.templateParameters, ["Gabriel", "T3CDEF", "Configurar domínio", "Implantação GBQ"])
 
   const fromClient = taskMessageEvent({ context: taskContext(), actor: { id: client.id, name: "Cliente", role: "client" }, body: "Obrigado!" })
   assert.equal(fromClient?.recipient.id, responsible.id)

@@ -1,5 +1,5 @@
 import { app3Fetch } from "@/lib/app3/client"
-import type { App3Conversation, App3Message, App3Page, App3SendResult, App3Template, App3WhatsappStatus } from "@/lib/app3/types"
+import type { App3Conversation, App3Message, App3Page, App3SendResult, App3Template, App3TemplateProvisionResult, App3WhatsappStatus } from "@/lib/app3/types"
 
 const API = "/api/integrations/v1/whatsapp"
 
@@ -29,8 +29,12 @@ export function sendWhatsappText(input: { to: string; text: string }) {
   return app3Fetch<App3SendResult>(`${API}/messages/text`, jsonPost(input))
 }
 
-export function sendWhatsappTemplate(input: { to: string; templateName: string; language?: string }) {
+export function sendWhatsappTemplate(input: { to: string; templateName: string; language?: string; parameters?: string[] }) {
   return app3Fetch<App3SendResult>(`${API}/messages/template`, jsonPost(input))
+}
+
+export function provisionGbqTemplates() {
+  return app3Fetch<App3TemplateProvisionResult>(`${API}/templates/gbq`, jsonPost({}))
 }
 
 export function sendWhatsappMedia(input: { to: string; file: File; caption?: string }) {

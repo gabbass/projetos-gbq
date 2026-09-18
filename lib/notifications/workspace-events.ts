@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { sendWhatsappText } from "@/lib/app3/whatsapp"
+import { sendWhatsappTemplate } from "@/lib/app3/whatsapp"
 import { normalizeWhatsappPhone, type WorkspaceNotificationEvent } from "@/lib/notifications/workspace-event-builders"
 import { createWorkspaceNotification } from "@/lib/notifications/repository"
 
@@ -18,5 +18,10 @@ export async function deliverWorkspaceNotification(event: WorkspaceNotificationE
 
   const phone = normalizeWhatsappPhone(event.recipient.phone)
   if (!phone) return
-  await sendWhatsappText({ to: phone, text: `${event.title}\n\n${event.body}` })
+  await sendWhatsappTemplate({
+    to: phone,
+    templateName: event.templateName,
+    language: "pt_BR",
+    parameters: event.templateParameters,
+  })
 }

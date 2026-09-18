@@ -9,6 +9,8 @@ export type WorkspaceNotificationEvent = {
   projectId: string
   title: string
   body: string
+  templateName: string
+  templateParameters: string[]
   metadata: Record<string, unknown>
 }
 
@@ -29,6 +31,8 @@ export function taskCreatedEvent(context: TaskNotificationContext, actorId: stri
     kind: "task_created", recipient, actorId, projectId: context.projectId,
     title: `${item} criada em ${context.projectName}`,
     body: `${item} #${context.taskCode} — ${context.taskTitle}\nStatus: ${statusLabels[context.status]}`,
+    templateName: "gbq_tarefa_criada_v1",
+    templateParameters: templateParameters(context.projectName, context.taskCode, context.taskTitle, statusLabels[context.status]),
     metadata: taskMetadata(context),
   }
 }
@@ -46,7 +50,12 @@ export function taskChangedEvent(input: { before: TaskNotificationContext; curre
   return {
     kind: statusChanged ? "task_status_changed" : "task_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
     title: `${statusChanged ? "Status alterado" : `${item} atualizada`} em ${input.current.projectName}`,
-    body: lines.join("\n"), metadata: { ...taskMetadata(input.current), changes: statusChanged ? ["status", ...changes] : changes },
+    body: lines.join("\n"),
+    templateName: statusChanged ? "gbq_status_tarefa_v1" : "gbq_tarefa_atualizada_v1",
+    templateParameters: statusChanged
+      ? templateParameters(input.current.projectName, input.current.taskCode, input.current.taskTitle, statusLabels[input.before.status], statusLabels[input.current.status])
+      : templateParameters(input.current.projectName, input.current.taskCode, input.current.taskTitle, joinLabels(changes)),
+    metadata: { ...taskMetadata(input.current), changes: statusChanged ? ["status", ...changes] : changes },
   }
 }
 
@@ -58,6 +67,8 @@ export function projectChangedEvent(input: { before: ProjectNotificationContext;
   return {
     kind: "project_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
     title: `Projeto #${input.current.projectCode} atualizado`, body: `${input.current.projectName}\nAlterações: ${joinLabels(changes)}`,
+    templateName: "gbq_projeto_atualizado_v1",
+    templateParameters: templateParameters(input.current.projectCode, input.current.projectName, joinLabels(changes)),
     metadata: { projectId: input.current.projectId, projectCode: input.current.projectCode, changes },
   }
 }
@@ -69,6 +80,8 @@ export function taskMessageEvent(input: { context: TaskNotificationContext; acto
     kind: "task_message_created", recipient, actorId: input.actor.id, projectId: input.context.projectId,
     title: `Nova mensagem na tarefa #${input.context.taskCode}`,
     body: `${input.context.taskTitle}\n${input.actor.name}: ${messagePreview(input.body, input.attachmentName)}\nProjeto: ${input.context.projectName}`,
+    templateName: "gbq_mensagem_tarefa_v1",
+    templateParameters: templateParameters(input.actor.name, input.context.taskCode, input.context.taskTitle, input.context.projectName),
     metadata: { ...taskMetadata(input.context), authorId: input.actor.id, authorName: input.actor.name },
   }
 }
@@ -100,6 +113,7 @@ function changedProjectFields(before: ProjectNotificationContext, current: Proje
 }
 
 function joinLabels(fields: string[]) { return fields.map((field) => fieldLabels[field] ?? field).join(", ") }
+function templateParameters(...values: string[]) { return values.map((value) => value.trim().slice(0, 1024) || "Não informado") }
 function messagePreview(body: string, attachmentName?: string) {
   const value = body.trim() || (attachmentName ? `Anexo: ${attachmentName}` : "Nova mensagem")
   return value.length > 180 ? `${value.slice(0, 177)}...` : value
