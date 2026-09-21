@@ -41,7 +41,7 @@ As duas rotas usam o service token existente. A organização deve vir do client
 
 Todos usam idioma `pt_BR`, categoria `UTILITY` e componente `BODY`.
 
-### `gbq_tarefa_criada_v1`
+### `gbq_tarefa_criada_v2`
 
 ```text
 Uma nova tarefa foi criada no projeto {{1}}.
@@ -52,7 +52,7 @@ Status: {{4}}
 
 Exemplos: `Implantação GBQ`, `T3CDEF`, `Configurar domínio`, `Em andamento`.
 
-### `gbq_status_tarefa_v1`
+### `gbq_status_tarefa_v2`
 
 ```text
 O status de uma tarefa foi atualizado no projeto {{1}}.
@@ -64,7 +64,7 @@ Novo status: {{5}}
 
 Exemplos: `Implantação GBQ`, `T3CDEF`, `Configurar domínio`, `Em andamento`, `Concluído`.
 
-### `gbq_tarefa_atualizada_v1`
+### `gbq_tarefa_atualizada_v2`
 
 ```text
 Uma tarefa foi atualizada no projeto {{1}}.
@@ -75,7 +75,7 @@ Alterações: {{4}}
 
 Exemplos: `Implantação GBQ`, `T3CDEF`, `Configurar domínio`, `responsável, prazo`.
 
-### `gbq_projeto_atualizado_v1`
+### `gbq_projeto_atualizado_v2`
 
 ```text
 O projeto {{1}} — {{2}} foi atualizado.
@@ -84,7 +84,7 @@ Alterações: {{3}}
 
 Exemplos: `P1ABCD`, `Implantação GBQ`, `prioridade, prazo`.
 
-### `gbq_mensagem_tarefa_v1`
+### `gbq_mensagem_tarefa_v2`
 
 ```text
 Nova mensagem de {{1}} na tarefa {{2}} — {{3}}.
@@ -133,7 +133,7 @@ Resposta compatível com o GBQ:
   "ready": false,
   "templates": [
     {
-      "name": "gbq_tarefa_criada_v1",
+      "name": "gbq_tarefa_criada_v2",
       "id": "123456789",
       "status": "PENDING",
       "created": true

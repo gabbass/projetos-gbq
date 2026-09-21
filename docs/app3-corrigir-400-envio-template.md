@@ -26,7 +26,7 @@ O App3 deve aceitar JSON no seguinte formato:
 ```json
 {
   "to": "5511999999999",
-  "templateName": "gbq_tarefa_criada_v1",
+  "templateName": "gbq_tarefa_criada_v2",
   "language": "pt_BR",
   "parameters": [
     "Implantação GBQ",
@@ -181,7 +181,7 @@ Exemplo mínimo do teste de contrato:
 ```ts
 const response = await POST(requestWithServiceToken({
   to: "5511999999999",
-  templateName: "gbq_tarefa_criada_v1",
+  templateName: "gbq_tarefa_criada_v2",
   language: "pt_BR",
   parameters: [
     "Implantação GBQ",
@@ -222,4 +222,3 @@ Depois do deploy:
 4. se o modelo estiver pendente, confirmar que não houve chamada à Meta e que a mensagem continua pendente;
 5. se o modelo estiver aprovado, confirmar a chamada à Meta e o preenchimento de `providerMessageId`;
 6. confirmar que uma nova chamada não envia novamente uma mensagem já confirmada.
-

@@ -31,7 +31,7 @@ export function taskCreatedEvent(context: TaskNotificationContext, actorId: stri
     kind: "task_created", recipient, actorId, projectId: context.projectId,
     title: `${item} criada em ${context.projectName}`,
     body: `${item} #${context.taskCode} — ${context.taskTitle}\nStatus: ${statusLabels[context.status]}`,
-    templateName: "gbq_tarefa_criada_v1",
+    templateName: "gbq_tarefa_criada_v2",
     templateParameters: templateParameters(context.projectName, context.taskCode, context.taskTitle, statusLabels[context.status]),
     metadata: taskMetadata(context),
   }
@@ -51,7 +51,7 @@ export function taskChangedEvent(input: { before: TaskNotificationContext; curre
     kind: statusChanged ? "task_status_changed" : "task_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
     title: `${statusChanged ? "Status alterado" : `${item} atualizada`} em ${input.current.projectName}`,
     body: lines.join("\n"),
-    templateName: statusChanged ? "gbq_status_tarefa_v1" : "gbq_tarefa_atualizada_v1",
+    templateName: statusChanged ? "gbq_status_tarefa_v2" : "gbq_tarefa_atualizada_v2",
     templateParameters: statusChanged
       ? templateParameters(input.current.projectName, input.current.taskCode, input.current.taskTitle, statusLabels[input.before.status], statusLabels[input.current.status])
       : templateParameters(input.current.projectName, input.current.taskCode, input.current.taskTitle, joinLabels(changes)),
@@ -67,7 +67,7 @@ export function projectChangedEvent(input: { before: ProjectNotificationContext;
   return {
     kind: "project_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
     title: `Projeto #${input.current.projectCode} atualizado`, body: `${input.current.projectName}\nAlterações: ${joinLabels(changes)}`,
-    templateName: "gbq_projeto_atualizado_v1",
+    templateName: "gbq_projeto_atualizado_v2",
     templateParameters: templateParameters(input.current.projectCode, input.current.projectName, joinLabels(changes)),
     metadata: { projectId: input.current.projectId, projectCode: input.current.projectCode, changes },
   }
@@ -80,7 +80,7 @@ export function taskMessageEvent(input: { context: TaskNotificationContext; acto
     kind: "task_message_created", recipient, actorId: input.actor.id, projectId: input.context.projectId,
     title: `Nova mensagem na tarefa #${input.context.taskCode}`,
     body: `${input.context.taskTitle}\n${input.actor.name}: ${messagePreview(input.body, input.attachmentName)}\nProjeto: ${input.context.projectName}`,
-    templateName: "gbq_mensagem_tarefa_v1",
+    templateName: "gbq_mensagem_tarefa_v2",
     templateParameters: templateParameters(input.actor.name, input.context.taskCode, input.context.taskTitle, input.context.projectName),
     metadata: { ...taskMetadata(input.context), authorId: input.actor.id, authorName: input.actor.name },
   }

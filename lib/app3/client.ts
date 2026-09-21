@@ -32,11 +32,23 @@ export async function app3Fetch<T>(path: string, options: RequestInit = {}): Pro
   }
   if (!response.ok) {
     const remoteCode = isRecord(body) && isRecord(body.error) && typeof body.error.code === "string" ? body.error.code : "APP3_API_ERROR"
-    throw new App3ApiError(remoteCode, response.status)
+    const remoteMessage = isRecord(body) && isRecord(body.error) && typeof body.error.message === "string"
+      ? sanitizeRemoteMessage(body.error.message)
+      : undefined
+    throw new App3ApiError(remoteCode, response.status, remoteMessage)
   }
   return body as T
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function sanitizeRemoteMessage(value: string) {
+  const message = value.trim().slice(0, 500)
+  if (!message) return undefined
+  return message
+    .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\bapp3_(?:live|test)_[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+    .replace(/\b\d{12,15}\b/g, "[REDACTED]")
 }

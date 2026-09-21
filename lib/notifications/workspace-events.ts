@@ -1,27 +1,13 @@
-import { randomUUID } from "node:crypto"
-
 import { sendWhatsappTemplate } from "@/lib/app3/whatsapp"
-import { normalizeWhatsappPhone, type WorkspaceNotificationEvent } from "@/lib/notifications/workspace-event-builders"
+import type { WorkspaceNotificationEvent } from "@/lib/notifications/workspace-event-builders"
+import { deliverWorkspaceNotificationWith } from "@/lib/notifications/workspace-delivery"
 import { createWorkspaceNotification } from "@/lib/notifications/repository"
 
-export async function deliverWorkspaceNotification(event: WorkspaceNotificationEvent) {
-  if (event.recipient.id === event.actorId) return
-  const eventId = `workspace_${randomUUID()}`
-  await createWorkspaceNotification({
-    externalEventId: eventId,
-    userId: event.recipient.id,
-    title: event.title,
-    body: event.body,
-    projectId: event.projectId,
-    metadata: { ...event.metadata, event: event.kind },
-  })
+export { workspaceNotificationErrorDetails } from "@/lib/notifications/workspace-delivery"
 
-  const phone = normalizeWhatsappPhone(event.recipient.phone)
-  if (!phone) return
-  await sendWhatsappTemplate({
-    to: phone,
-    templateName: event.templateName,
-    language: "pt_BR",
-    parameters: event.templateParameters,
+export function deliverWorkspaceNotification(event: WorkspaceNotificationEvent) {
+  return deliverWorkspaceNotificationWith(event, {
+    createNotification: createWorkspaceNotification,
+    sendTemplate: sendWhatsappTemplate,
   })
 }

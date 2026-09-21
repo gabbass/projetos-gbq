@@ -29,7 +29,7 @@ import {
   taskMessageEvent,
   type WorkspaceNotificationEvent,
 } from "@/lib/notifications/workspace-event-builders"
-import { deliverWorkspaceNotification } from "@/lib/notifications/workspace-events"
+import { deliverWorkspaceNotification, workspaceNotificationErrorDetails } from "@/lib/notifications/workspace-events"
 
 export type ProjectActionState = { status?: "success" | "error"; message?: string }
 
@@ -60,7 +60,7 @@ function scheduleNotification(event: WorkspaceNotificationEvent | null) {
     try {
       await deliverWorkspaceNotification(event)
     } catch (error) {
-      console.error("Falha ao entregar notificação do workspace:", { kind: event.kind, projectId: event.projectId, error })
+      console.error("Falha ao entregar notificação do workspace:", workspaceNotificationErrorDetails(event, error))
     }
   })
 }

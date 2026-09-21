@@ -35,3 +35,19 @@ test("trata timeout/rede sem vazar detalhe técnico", async () => {
   globalThis.fetch = async () => { throw new DOMException("aborted", "TimeoutError") }
   await rejectsWith("APP3_TIMEOUT", 503, () => app3Fetch("/status"))
 })
+
+test("preserva mensagem remota sanitizada", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    error: {
+      code: "TEMPLATE_NOT_FOUND",
+      message: "Modelo ausente para 5511999999999 com app3_live_segredo123",
+    },
+  }), { status: 404 })
+  await assert.rejects(
+    () => app3Fetch("/status"),
+    (error) => error instanceof App3ApiError
+      && error.message === "Modelo ausente para [REDACTED] com [REDACTED]"
+      && !error.message.includes("5511999999999")
+      && !error.message.includes("app3_live_segredo123"),
+  )
+})
