@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useFormStatus } from "react-dom"
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,7 +21,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useErrorFeedback } from "@/hooks/use-action-feedback"
 
 type StepId = "overview" | "projects" | "tracking" | "security"
 
@@ -42,6 +45,7 @@ export function Onboarding({
   const currentIndex = stepIds.indexOf(step)
   const isFirst = currentIndex === 0
   const isLast = currentIndex === stepIds.length - 1
+  useErrorFeedback(hasError ? "Não foi possível concluir. Tente novamente." : undefined)
 
   function move(direction: -1 | 1) {
     const nextStep = stepIds[currentIndex + direction]
@@ -146,13 +150,7 @@ export function Onboarding({
             </TabsContent>
 
             <div className="flex flex-col gap-3 border-t bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <div>
-                {hasError ? (
-                  <p role="alert" className="text-sm text-destructive">Não foi possível concluir. Tente novamente.</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Você poderá explorar tudo novamente no menu lateral.</p>
-                )}
-              </div>
+              <p className="text-xs text-muted-foreground">Você poderá explorar tudo novamente no menu lateral.</p>
               <div className="flex gap-2 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => move(-1)} disabled={isFirst}>
                   <ArrowLeft />
@@ -160,10 +158,7 @@ export function Onboarding({
                 </Button>
                 {isLast ? (
                   <form action={completeOnboardingAction} className="flex-1 sm:flex-none">
-                    <Button type="submit" className="w-full">
-                      Entrar no sistema
-                      <ArrowRight />
-                    </Button>
+                    <OnboardingSubmit />
                   </form>
                 ) : (
                   <Button type="button" className="flex-1 sm:flex-none" onClick={() => move(1)}>
@@ -177,6 +172,17 @@ export function Onboarding({
         </Card>
       </div>
     </main>
+  )
+}
+
+function OnboardingSubmit() {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? <Spinner /> : null}
+      {pending ? "Entrando..." : "Entrar no sistema"}
+      {!pending ? <ArrowRight /> : null}
+    </Button>
   )
 }
 

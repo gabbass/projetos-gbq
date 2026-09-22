@@ -2,10 +2,9 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { useFormStatus } from "react-dom"
 import {
-  LoaderCircle,
   DatabaseZap,
   LockKeyhole,
   Moon,
@@ -35,7 +34,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useActionFeedback } from "@/hooks/use-action-feedback"
 
 type UserItem = {
   id: string
@@ -74,18 +75,6 @@ function initials(name: string, email: string) {
   return source.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")
 }
 
-function ActionFeedback({ state }: { state: SettingsActionState }) {
-  if (!state.message) return null
-  return (
-    <p
-      role={state.status === "error" ? "alert" : "status"}
-      className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
-    >
-      {state.message}
-    </p>
-  )
-}
-
 function SubmitButton({ children, variant = "default", name, value, disabled }: {
   children: React.ReactNode
   variant?: "default" | "outline" | "destructive"
@@ -96,7 +85,7 @@ function SubmitButton({ children, variant = "default", name, value, disabled }: 
   const { pending } = useFormStatus()
   return (
     <Button type="submit" variant={variant} name={name} value={value} disabled={pending || disabled}>
-      {pending ? <LoaderCircle className="animate-spin" /> : null}
+      {pending ? <Spinner /> : null}
       {pending ? "Salvando..." : children}
     </Button>
   )
@@ -140,8 +129,10 @@ function UserFields({ user }: { user?: UserItem }) {
 
 function NewUserSheet() {
   const [state, action] = useActionState(createUserAction, initialState)
+  const [open, setOpen] = useState(false)
+  useActionFeedback(state, { onSuccess: () => setOpen(false) })
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild><Button><UserPlus />Novo usuário</Button></SheetTrigger>
       <SheetContent className="overflow-hidden sm:max-w-xl">
         <SheetHeader>
@@ -151,7 +142,6 @@ function NewUserSheet() {
         <ScrollArea className="min-h-0 flex-1">
           <form action={action} className="grid gap-5 px-6 pb-6">
             <UserFields />
-            <ActionFeedback state={state} />
             <div><SubmitButton>Cadastrar usuário</SubmitButton></div>
           </form>
         </ScrollArea>
@@ -162,13 +152,13 @@ function NewUserSheet() {
 
 function ProfileForm({ settings }: { settings: AppearanceSettings }) {
   const [state, action] = useActionState(updateOwnProfileAction, initialState)
+  useActionFeedback(state)
   return (
     <form action={action} className="grid gap-5">
       <div className="grid gap-2"><Label htmlFor="profile-name">Nome completo</Label><Input id="profile-name" name="name" defaultValue={settings.userName} required minLength={2} maxLength={100} /></div>
       <div className="grid gap-2"><Label htmlFor="profile-email">E-mail</Label><Input id="profile-email" name="email" type="email" defaultValue={settings.userEmail} required maxLength={254} /></div>
       <div className="grid gap-2"><Label htmlFor="profile-phone">Celular com DDD</Label><Input id="profile-phone" name="phone" type="tel" inputMode="tel" defaultValue={settings.userPhone} required minLength={10} maxLength={20} placeholder="11999999999" /></div>
       <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 text-sm"><p><span className="text-muted-foreground">Perfil:</span> {settings.userRole === "admin" ? "Administrador" : "Cliente"}</p><p><span className="text-muted-foreground">Área:</span> {settings.userArea || "Não informada"}</p></div>
-      <ActionFeedback state={state} />
       <div><SubmitButton>Salvar minhas informações</SubmitButton></div>
     </form>
   )
@@ -179,9 +169,12 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
   const remove = deleteUserAction.bind(null, user.id)
   const [updateState, updateAction] = useActionState(update, initialState)
   const [deleteState, deleteAction] = useActionState(remove, initialState)
+  const [open, setOpen] = useState(false)
+  useActionFeedback(updateState, { onSuccess: () => setOpen(false) })
+  useActionFeedback(deleteState, { onSuccess: () => setOpen(false) })
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Editar ${user.name || user.email}`}><Pencil /></Button></SheetTrigger>
       <SheetContent className="overflow-hidden sm:max-w-xl">
         <SheetHeader>
@@ -191,7 +184,6 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
         <ScrollArea className="min-h-0 flex-1">
           <form action={updateAction} className="grid gap-5 px-6">
             <UserFields user={user} />
-            <ActionFeedback state={updateState} />
             <div><SubmitButton>Salvar alterações</SubmitButton></div>
           </form>
           <SheetFooter className="mt-8 border-t">
@@ -203,7 +195,6 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
               <SubmitButton variant="destructive" value="delete" disabled={user.id === currentUserId}><Trash2 />Excluir usuário</SubmitButton>
             </form>
             {user.id === currentUserId ? <p className="text-xs text-muted-foreground">Seu próprio acesso não pode ser excluído.</p> : null}
-            <ActionFeedback state={deleteState} />
           </SheetFooter>
         </ScrollArea>
       </SheetContent>
@@ -213,6 +204,7 @@ function EditUserSheet({ user, currentUserId }: { user: UserItem; currentUserId:
 
 function AppearanceForm({ settings }: { settings: AppearanceSettings }) {
   const [state, action] = useActionState(updateAppearanceAction, initialState)
+  useActionFeedback(state)
   const version = encodeURIComponent(settings.version)
   return (
     <form action={action} className="grid gap-6">
@@ -251,7 +243,6 @@ function AppearanceForm({ settings }: { settings: AppearanceSettings }) {
         <p className="text-xs text-muted-foreground">Prefira uma imagem quadrada em PNG, SVG ou ICO.</p>
       </div>
 
-      <ActionFeedback state={state} />
       <div><SubmitButton>Salvar aparência</SubmitButton></div>
     </form>
   )
@@ -259,6 +250,7 @@ function AppearanceForm({ settings }: { settings: AppearanceSettings }) {
 
 function ThemeForm({ theme }: { theme: "light" | "dark" }) {
   const [state, action] = useActionState(updateThemeAction, initialState)
+  useActionFeedback(state)
   return (
     <form action={action} className="grid gap-5">
       <div className="grid gap-2">
@@ -272,7 +264,6 @@ function ThemeForm({ theme }: { theme: "light" | "dark" }) {
         </Select>
         <p className="text-xs text-muted-foreground">Esta escolha vale somente para a sua conta.</p>
       </div>
-      <ActionFeedback state={state} />
       <div><SubmitButton>Salvar meu tema</SubmitButton></div>
     </form>
   )

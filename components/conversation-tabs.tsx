@@ -1,8 +1,9 @@
 "use client"
 
 import { useActionState, useEffect, useRef, useState } from "react"
-import { Bell, Download, FileText, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Send, Smartphone } from "lucide-react"
+import { Bell, Download, FileText, MessageCircle, Paperclip, RefreshCw, Send, Smartphone } from "lucide-react"
 import Image from "next/image"
+import { toast } from "sonner"
 
 import { markChatReadAction, sendChatMessageAction, type ProjectActionState } from "@/app/project-actions"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -12,11 +13,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import type { ChatMessage, ChatTargetType } from "@/lib/projects/database"
 import type { App3Message, App3Page, App3WhatsappStatus } from "@/lib/app3/types"
+import { useActionFeedback } from "@/hooks/use-action-feedback"
 
 const initialState: ProjectActionState = {}
 
@@ -72,9 +74,7 @@ function ChatPanel({ targetType, targetId, messages, currentUserId }: { targetTy
   const [state, action, pending] = useActionState(sendChatMessageAction.bind(null, targetType, targetId), initialState)
   const formRef = useRef<HTMLFormElement>(null)
 
-  useEffect(() => {
-    if (state.status === "success") formRef.current?.reset()
-  }, [state])
+  useActionFeedback(state, { onSuccess: () => formRef.current?.reset() })
 
   return <div className="flex min-h-[34rem] flex-col gap-4">
     <ScrollArea className="h-[24rem] rounded-2xl border bg-muted/20">
@@ -85,8 +85,7 @@ function ChatPanel({ targetType, targetId, messages, currentUserId }: { targetTy
     <form ref={formRef} action={action} className="grid gap-3">
       <div className="grid gap-2"><Label htmlFor={`chat-message-${targetId}`}>Mensagem</Label><Textarea id={`chat-message-${targetId}`} name="message" maxLength={4000} placeholder="Escreva uma atualização..." className="min-h-20" /></div>
       <div className="grid gap-2"><Label htmlFor={`chat-file-${targetId}`}><Paperclip />Anexo opcional</Label><Input id={`chat-file-${targetId}`} name="attachment" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip" /></div>
-      <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">1 arquivo por mensagem · máximo de 10 MB</p><Button type="submit" disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : <Send />}{pending ? "Enviando..." : "Enviar"}</Button></div>
-      {state.message ? <p role={state.status === "error" ? "alert" : "status"} className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600"}>{state.message}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">1 arquivo por mensagem · máximo de 10 MB</p><Button type="submit" disabled={pending}>{pending ? <Spinner /> : <Send />}{pending ? "Enviando..." : "Enviar"}</Button></div>
     </form>
   </div>
 }
@@ -113,12 +112,11 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState("")
   const formRef = useRef<HTMLFormElement>(null)
+  const loadErrorId = `whatsapp-load-${contactWaId}`
 
   async function load(append = false) {
     if (!append) setLoading(true)
-    setError("")
     try {
       const cursor = append && nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : ""
       const [statusResponse, messagesResponse] = await Promise.all([
@@ -131,7 +129,8 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
       setStatus(statusData)
       setMessages((current) => append ? [...current, ...page.data] : page.data)
       setNextCursor(page.nextCursor)
-    } catch { setError("Não foi possível carregar o WhatsApp agora.") }
+      toast.dismiss(loadErrorId)
+    } catch { toast.error("Não foi possível carregar o WhatsApp agora.", { id: loadErrorId, duration: Infinity }) }
     finally { setLoading(false) }
   }
 
@@ -146,26 +145,25 @@ function WhatsappPanel({ contactWaId }: { contactWaId: string }) {
     const text = String(form.get("text") ?? "").trim()
     if (!text) return
     setSending(true)
-    setError("")
     try {
       const response = await fetch("/api/integrations/app3/messages/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: contactWaId, text }) })
       const body = await response.json().catch(() => ({})) as { error?: string }
       if (!response.ok) throw new Error(body.error || "SEND_FAILED")
       formRef.current?.reset()
       await load()
-    } catch (sendError) { setError(sendError instanceof Error && sendError.message !== "SEND_FAILED" ? sendError.message : "Não foi possível enviar a mensagem agora. Tente novamente.") }
+      toast.success("Mensagem enviada.")
+    } catch (sendError) { toast.error(sendError instanceof Error && sendError.message !== "SEND_FAILED" ? sendError.message : "Não foi possível enviar a mensagem agora. Tente novamente.", { duration: Infinity }) }
     finally { setSending(false) }
   }
 
-  if (loading) return <div className="space-y-3"><SkeletonRows /></div>
+  if (loading) return <div className="flex min-h-[34rem] items-center justify-center"><Spinner className="size-6" /></div>
   return <div className="flex min-h-[34rem] flex-col gap-4">
     <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-3 py-2"><div className="min-w-0"><p className="text-sm font-medium">{formatPhone(contactWaId)}</p><p className="text-xs text-muted-foreground">{status?.connected ? "WhatsApp conectado" : "WhatsApp desconectado"}</p></div><Button variant="ghost" size="icon-sm" onClick={() => void load()} aria-label="Atualizar WhatsApp"><RefreshCw /></Button></div>
     <ScrollArea className="h-[23rem] rounded-2xl border bg-muted/20"><div className="space-y-3 p-4">{nextCursor ? <Button variant="ghost" size="sm" className="w-full" onClick={() => void load(true)}>Carregar mensagens anteriores</Button> : null}{messages.length === 0 ? <p className="py-24 text-center text-sm text-muted-foreground">Nenhuma mensagem encontrada.</p> : [...messages].reverse().map((message) => <div key={message.id} className={`flex ${message.direction === "outbound" ? "justify-end" : "justify-start"}`}><div className={`max-w-[82%] rounded-2xl border px-3 py-2 ${message.direction === "outbound" ? "border-primary/20 bg-primary/5" : "bg-card"}`}><p className="whitespace-pre-wrap text-sm">{message.text || `Mensagem do tipo ${message.type}`}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatApp3Date(message.createdAt)}{message.status ? ` · ${message.status}` : ""}</p></div></div>)}</div></ScrollArea>
-    <form ref={formRef} action={send} className="grid gap-3"><Textarea name="text" maxLength={4096} placeholder="Responder pelo WhatsApp..." disabled={!status?.connected || sending} /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">O envio é processado pelo App3.</p><Button type="submit" disabled={!status?.connected || sending}>{sending ? <LoaderCircle className="animate-spin" /> : <Send />}{sending ? "Enviando..." : "Enviar"}</Button></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>
+    <form ref={formRef} action={send} className="grid gap-3"><Textarea name="text" maxLength={4096} placeholder="Responder pelo WhatsApp..." disabled={!status?.connected || sending} /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">O envio é processado pelo App3.</p><Button type="submit" disabled={!status?.connected || sending}>{sending ? <Spinner /> : <Send />}{sending ? "Enviando..." : "Enviar"}</Button></div></form>
   </div>
 }
 
-function SkeletonRows() { return <>{Array.from({ length: 5 }, (_, index) => <div key={index} className={`flex ${index % 2 ? "justify-end" : "justify-start"}`}><div className="w-2/3 space-y-2 rounded-2xl border p-3"><Skeleton className="h-3 w-full" /><Skeleton className="h-3 w-1/2" /></div></div>)}</> }
 function formatPhone(value: string) { return value.length > 4 ? `WhatsApp •••• ${value.slice(-4)}` : "WhatsApp" }
 function formatApp3Date(value: number) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) }
 

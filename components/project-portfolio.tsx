@@ -1,8 +1,8 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { useFormStatus } from "react-dom"
-import { CalendarDays, Eye, FolderPlus, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react"
+import { CalendarDays, Eye, FolderPlus, Pencil, Plus, Trash2 } from "lucide-react"
 
 import {
   createProjectAction,
@@ -19,10 +19,12 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ConversationTabs, UnreadBadge } from "@/components/conversation-tabs"
 import type { ChatMessage, ChatUnread, Project, ProjectStatus } from "@/lib/projects/database"
+import { useActionFeedback } from "@/hooks/use-action-feedback"
 
 const initialState: ProjectActionState = {}
 const priorityLabel = { high: "Alta", medium: "Média", low: "Baixa" }
@@ -37,13 +39,9 @@ const projectStatusLabel: Record<ProjectStatus, string> = {
 }
 type UserOption = { id: string; name: string; email: string }
 
-function Feedback({ state }: { state: ProjectActionState }) {
-  return state.message ? <p role={state.status === "error" ? "alert" : "status"} className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600"}>{state.message}</p> : null
-}
-
 function Submit({ children, destructive = false }: { children: React.ReactNode; destructive?: boolean }) {
   const { pending } = useFormStatus()
-  return <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>{pending ? <LoaderCircle className="animate-spin" /> : null}{pending ? "Salvando..." : children}</Button>
+  return <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>{pending ? <Spinner /> : null}{pending ? "Salvando..." : children}</Button>
 }
 
 function ProjectFields({ project, clients, responsibles }: { project?: Project; clients: UserOption[]; responsibles: UserOption[] }) {
@@ -66,18 +64,23 @@ function ProjectFields({ project, clients, responsibles }: { project?: Project; 
 
 function NewProjectSheet({ clients, responsibles }: { clients: UserOption[]; responsibles: UserOption[] }) {
   const [state, action] = useActionState(createProjectAction, initialState)
-  return <Sheet>
+  const [open, setOpen] = useState(false)
+  useActionFeedback(state, { onSuccess: () => setOpen(false) })
+  return <Sheet open={open} onOpenChange={setOpen}>
     <SheetTrigger asChild><Button><Plus />Novo projeto</Button></SheetTrigger>
-    <SheetContent className="overflow-hidden sm:max-w-xl lg:max-w-2xl"><SheetHeader><SheetTitle>Novo projeto</SheetTitle><SheetDescription>Vincule o cliente e a pessoa responsável pela execução.</SheetDescription></SheetHeader><ScrollArea className="min-h-0 flex-1"><form action={action} className="grid gap-5 px-6 pb-6"><ProjectFields clients={clients} responsibles={responsibles} /><Feedback state={state} /><div><Submit>Salvar projeto</Submit></div></form></ScrollArea></SheetContent>
+    <SheetContent className="overflow-hidden sm:max-w-xl lg:max-w-2xl"><SheetHeader><SheetTitle>Novo projeto</SheetTitle><SheetDescription>Vincule o cliente e a pessoa responsável pela execução.</SheetDescription></SheetHeader><ScrollArea className="min-h-0 flex-1"><form action={action} className="grid gap-5 px-6 pb-6"><ProjectFields clients={clients} responsibles={responsibles} /><div><Submit>Salvar projeto</Submit></div></form></ScrollArea></SheetContent>
   </Sheet>
 }
 
 function EditProjectSheet({ project, clients, responsibles, messages, unread, currentUserId }: { project: Project; clients: UserOption[]; responsibles: UserOption[]; messages: ChatMessage[]; unread: number; currentUserId: string }) {
   const [updateState, updateAction] = useActionState(updateProjectAction.bind(null, project.id), initialState)
   const [deleteState, deleteAction] = useActionState(deleteProjectAction.bind(null, project.id), initialState)
-  return <Sheet>
+  const [open, setOpen] = useState(false)
+  useActionFeedback(updateState, { onSuccess: () => setOpen(false) })
+  useActionFeedback(deleteState, { onSuccess: () => setOpen(false) })
+  return <Sheet open={open} onOpenChange={setOpen}>
     <SheetTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Abrir ${project.name}`}><Pencil /></Button></SheetTrigger>
-    <SheetContent className="overflow-hidden sm:max-w-3xl lg:max-w-4xl"><SheetHeader><div className="flex items-center gap-2"><SheetTitle>{project.name}</SheetTitle><Badge variant="outline" className="font-mono">#{project.code}</Badge></div><SheetDescription>Edite os dados do projeto ou converse com o cliente.</SheetDescription></SheetHeader><ConversationTabs targetType="project" targetId={project.id} messages={messages} unread={unread} currentUserId={currentUserId} whatsappContact={project.client_phone} details={<div className="space-y-8"><form action={updateAction} className="grid gap-5"><ProjectFields project={project} clients={clients} responsibles={responsibles} /><Feedback state={updateState} /><div><Submit>Salvar alterações</Submit></div></form><SheetFooter className="border-t px-0"><div><p className="font-medium">Excluir projeto</p><p className="text-xs text-muted-foreground">Também remove definitivamente todas as tarefas vinculadas.</p></div><form action={deleteAction}><Submit destructive><Trash2 />Excluir projeto</Submit></form><Feedback state={deleteState} /></SheetFooter></div>} /></SheetContent>
+    <SheetContent className="overflow-hidden sm:max-w-3xl lg:max-w-4xl"><SheetHeader><div className="flex items-center gap-2"><SheetTitle>{project.name}</SheetTitle><Badge variant="outline" className="font-mono">#{project.code}</Badge></div><SheetDescription>Edite os dados do projeto ou converse com o cliente.</SheetDescription></SheetHeader><ConversationTabs targetType="project" targetId={project.id} messages={messages} unread={unread} currentUserId={currentUserId} whatsappContact={project.client_phone} details={<div className="space-y-8"><form action={updateAction} className="grid gap-5"><ProjectFields project={project} clients={clients} responsibles={responsibles} /><div><Submit>Salvar alterações</Submit></div></form><SheetFooter className="border-t px-0"><div><p className="font-medium">Excluir projeto</p><p className="text-xs text-muted-foreground">Também remove definitivamente todas as tarefas vinculadas.</p></div><form action={deleteAction}><Submit destructive><Trash2 />Excluir projeto</Submit></form></SheetFooter></div>} /></SheetContent>
   </Sheet>
 }
 

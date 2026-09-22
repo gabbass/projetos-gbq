@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react"
 import { useFormStatus } from "react-dom"
-import { BookOpenCheck, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail } from "lucide-react"
+import { BookOpenCheck, Eye, EyeOff, LockKeyhole, LogIn, Mail } from "lucide-react"
 
 import {
   changePasswordAction,
@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Spinner } from "@/components/ui/spinner"
 import { LegalDocumentDialog } from "@/components/legal-documents"
+import { useErrorFeedback } from "@/hooks/use-action-feedback"
 import { LEGAL_VERSION } from "@/lib/legal"
 
 const initialState: AuthActionState = {}
@@ -23,7 +25,7 @@ function SubmitButton({ children, disabled = false }: { children: React.ReactNod
 
   return (
     <Button type="submit" size="lg" className="mt-1 w-full" disabled={pending || disabled}>
-      {pending ? <LoaderCircle className="animate-spin" /> : <LogIn />}
+      {pending ? <Spinner /> : <LogIn />}
       {pending ? "Aguarde..." : children}
     </Button>
   )
@@ -73,6 +75,7 @@ function PasswordField({
 
 export function LoginForm() {
   const [state, action] = useActionState(loginAction, initialState)
+  useErrorFeedback(state.error)
 
   return (
     <form action={action} className="grid gap-5">
@@ -99,11 +102,6 @@ export function LoginForm() {
         autoComplete="current-password"
         placeholder="Digite sua senha ou celular com DDD"
       />
-      {state.error ? (
-        <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {state.error}
-        </p>
-      ) : null}
       <SubmitButton>Entrar</SubmitButton>
     </form>
   )
@@ -111,6 +109,7 @@ export function LoginForm() {
 
 export function ChangePasswordForm() {
   const [state, action] = useActionState(changePasswordAction, initialState)
+  useErrorFeedback(state.error)
   const [openedTerms, setOpenedTerms] = useState(false)
   const [openedSecurityPolicy, setOpenedSecurityPolicy] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
@@ -205,11 +204,6 @@ export function ChangePasswordForm() {
           </div>
         </div>
       </div>
-      {state.error ? (
-        <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {state.error}
-        </p>
-      ) : null}
       <SubmitButton disabled={!acceptedTerms || !acceptedSecurityPolicy}>Salvar e continuar</SubmitButton>
     </form>
   )

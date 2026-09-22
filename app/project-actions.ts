@@ -274,14 +274,20 @@ export async function createSubtaskAction(parentTaskId: string, _state: ProjectA
   }
 }
 
-export async function updateSubtaskStatusAction(subtaskId: string, status: TaskStatus) {
-  const user = await requireAdministrator()
-  if (!uuidPattern.test(subtaskId) || !statuses.has(status)) return
-  const before = await getTaskNotificationContext(subtaskId)
-  await updateSubtaskStatus(subtaskId, status)
-  const current = await getTaskNotificationContext(subtaskId)
-  scheduleNotification(taskChangedEvent({ before, current, actorId: user.id }))
-  refreshProjectViews()
+export async function updateSubtaskStatusAction(subtaskId: string, status: TaskStatus): Promise<ProjectActionState> {
+  if (!uuidPattern.test(subtaskId) || !statuses.has(status)) return { status: "error", message: "Movimentação inválida." }
+  try {
+    const user = await requireAdministrator()
+    const before = await getTaskNotificationContext(subtaskId)
+    await updateSubtaskStatus(subtaskId, status)
+    const current = await getTaskNotificationContext(subtaskId)
+    scheduleNotification(taskChangedEvent({ before, current, actorId: user.id }))
+    refreshProjectViews()
+    return { status: "success", message: "Subtarefa movida." }
+  } catch (error) {
+    console.error("Falha ao mover subtarefa:", error)
+    return { status: "error", message: errorMessage(error) }
+  }
 }
 
 export async function sendChatMessageAction(targetType: ChatTargetType, targetId: string, _state: ProjectActionState, formData: FormData): Promise<ProjectActionState> {

@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import "./globals.css"
 import { AppShell } from "@/components/app-shell"
+import { Toaster } from "@/components/ui/sonner"
 import { getWorkspaceSettings } from "@/lib/auth/database"
 import { getCurrentUser } from "@/lib/auth/session"
 import { cn } from "@/lib/utils"
@@ -51,6 +52,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         >
           {children}
         </AppShell>
+        <Toaster />
       </body>
     </html>
   )
