@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { useFormStatus } from "react-dom"
+import { useActionState, useState } from "react"
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpenCheck,
   ChartNoAxesColumnIncreasing,
   CheckCircle2,
   FolderKanban,
@@ -13,22 +13,28 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Smartphone,
   Users,
 } from "lucide-react"
 
-import { completeOnboardingAction } from "@/app/auth-actions"
+import { completeOnboardingAction, type AuthActionState } from "@/app/auth-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { LegalDocumentDialog } from "@/components/legal-documents"
 import { useErrorFeedback } from "@/hooks/use-action-feedback"
+import { LEGAL_VERSION, WHATSAPP_CONSENT_VERSION } from "@/lib/legal"
 
-type StepId = "overview" | "projects" | "tracking" | "security"
+type StepId = "overview" | "projects" | "tracking" | "security" | "consent"
 
-const stepIds: StepId[] = ["overview", "projects", "tracking", "security"]
-const stepLabels = ["Visão geral", "Projetos", "Acompanhamento", "Segurança"]
+const stepIds: StepId[] = ["overview", "projects", "tracking", "security", "consent"]
+const stepLabels = ["Visão geral", "Projetos", "Acompanhamento", "Segurança", "Aceites"]
+const initialState: AuthActionState = {}
 
 export function Onboarding({
   firstName,
@@ -42,10 +48,17 @@ export function Onboarding({
   hasError: boolean
 }) {
   const [step, setStep] = useState<StepId>("overview")
+  const [state, action, pending] = useActionState(completeOnboardingAction, initialState)
+  const [openedTerms, setOpenedTerms] = useState(false)
+  const [openedSecurityPolicy, setOpenedSecurityPolicy] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedSecurityPolicy, setAcceptedSecurityPolicy] = useState(false)
+  const [acceptedWhatsapp, setAcceptedWhatsapp] = useState(false)
   const currentIndex = stepIds.indexOf(step)
   const isFirst = currentIndex === 0
   const isLast = currentIndex === stepIds.length - 1
   useErrorFeedback(hasError ? "Não foi possível concluir. Tente novamente." : undefined)
+  useErrorFeedback(state.error)
 
   function move(direction: -1 | 1) {
     const nextStep = stepIds[currentIndex + direction]
@@ -76,9 +89,10 @@ export function Onboarding({
         <Progress value={((currentIndex + 1) / stepIds.length) * 100} aria-label={`Etapa ${currentIndex + 1} de ${stepIds.length}`} />
 
         <Card className="overflow-hidden py-0">
+          <form action={action}>
           <Tabs value={step} onValueChange={(value) => setStep(value as StepId)} className="gap-0">
             <div className="border-b bg-muted/30 p-3 sm:p-4">
-              <TabsList className="grid h-auto w-full grid-cols-4">
+              <TabsList className="grid h-auto w-full grid-cols-5">
                 {stepIds.map((item, index) => (
                   <TabsTrigger key={item} value={item} aria-label={stepLabels[index]} className="h-9 px-2">
                     <span className="sm:hidden">{index + 1}</span>
@@ -149,6 +163,21 @@ export function Onboarding({
               />
             </TabsContent>
 
+            <TabsContent value="consent" className="m-0">
+              <ConsentStep
+                openedTerms={openedTerms}
+                openedSecurityPolicy={openedSecurityPolicy}
+                acceptedTerms={acceptedTerms}
+                acceptedSecurityPolicy={acceptedSecurityPolicy}
+                acceptedWhatsapp={acceptedWhatsapp}
+                onOpenTerms={() => setOpenedTerms(true)}
+                onOpenSecurityPolicy={() => setOpenedSecurityPolicy(true)}
+                onAcceptTerms={setAcceptedTerms}
+                onAcceptSecurityPolicy={setAcceptedSecurityPolicy}
+                onAcceptWhatsapp={setAcceptedWhatsapp}
+              />
+            </TabsContent>
+
             <div className="flex flex-col gap-3 border-t bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <p className="text-xs text-muted-foreground">Você poderá explorar tudo novamente no menu lateral.</p>
               <div className="flex gap-2 sm:justify-end">
@@ -157,9 +186,10 @@ export function Onboarding({
                   Voltar
                 </Button>
                 {isLast ? (
-                  <form action={completeOnboardingAction} className="flex-1 sm:flex-none">
-                    <OnboardingSubmit />
-                  </form>
+                  <OnboardingSubmit
+                    pending={pending}
+                    disabled={!acceptedTerms || !acceptedSecurityPolicy || !acceptedWhatsapp}
+                  />
                 ) : (
                   <Button type="button" className="flex-1 sm:flex-none" onClick={() => move(1)}>
                     Continuar
@@ -169,20 +199,159 @@ export function Onboarding({
               </div>
             </div>
           </Tabs>
+          </form>
         </Card>
       </div>
     </main>
   )
 }
 
-function OnboardingSubmit() {
-  const { pending } = useFormStatus()
+function OnboardingSubmit({ pending, disabled }: { pending: boolean; disabled: boolean }) {
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button type="submit" className="flex-1 sm:flex-none" disabled={pending || disabled}>
       {pending ? <Spinner /> : null}
       {pending ? "Entrando..." : "Entrar no sistema"}
       {!pending ? <ArrowRight /> : null}
     </Button>
+  )
+}
+
+function ConsentStep({
+  openedTerms,
+  openedSecurityPolicy,
+  acceptedTerms,
+  acceptedSecurityPolicy,
+  acceptedWhatsapp,
+  onOpenTerms,
+  onOpenSecurityPolicy,
+  onAcceptTerms,
+  onAcceptSecurityPolicy,
+  onAcceptWhatsapp,
+}: {
+  openedTerms: boolean
+  openedSecurityPolicy: boolean
+  acceptedTerms: boolean
+  acceptedSecurityPolicy: boolean
+  acceptedWhatsapp: boolean
+  onOpenTerms: () => void
+  onOpenSecurityPolicy: () => void
+  onAcceptTerms: (accepted: boolean) => void
+  onAcceptSecurityPolicy: (accepted: boolean) => void
+  onAcceptWhatsapp: (accepted: boolean) => void
+}) {
+  return (
+    <div className="grid min-h-[25rem] md:grid-cols-[0.82fr_1.18fr]">
+      <div className="flex min-h-52 items-center justify-center bg-primary p-8 text-primary-foreground md:min-h-full">
+        <div className="text-center">
+          <span className="mx-auto mb-5 flex size-20 items-center justify-center rounded-3xl bg-white/15 ring-1 ring-white/25">
+            <BookOpenCheck className="size-10" />
+          </span>
+          <p className="text-sm font-medium text-primary-foreground/70">Confirmação final</p>
+        </div>
+      </div>
+      <div className="flex flex-col justify-center p-6 sm:p-8">
+        <CardHeader className="p-0">
+          <CardTitle className="text-2xl">Termos e comunicações</CardTitle>
+          <CardDescription className="text-sm leading-6">
+            Leia os documentos e confirme como deseja receber as atualizações operacionais do sistema.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="mt-7 grid gap-5 p-0">
+          <ConsentCheckbox
+            id="accept-terms"
+            name="acceptTerms"
+            value={LEGAL_VERSION}
+            checked={acceptedTerms}
+            disabled={!openedTerms}
+            onCheckedChange={onAcceptTerms}
+            label={
+              <span className="flex flex-wrap items-baseline gap-x-1">
+                Li e aceito os
+                <LegalDocumentDialog
+                  document="terms"
+                  onOpenChange={(open) => open && onOpenTerms()}
+                  trigger={<Button type="button" variant="link" className="h-auto p-0 align-baseline text-sm">Termos de Uso</Button>}
+                />
+              </span>
+            }
+            hint={!openedTerms ? "Abra o documento para habilitar este aceite." : undefined}
+          />
+          <ConsentCheckbox
+            id="accept-security-policy"
+            name="acceptSecurityPolicy"
+            value={LEGAL_VERSION}
+            checked={acceptedSecurityPolicy}
+            disabled={!openedSecurityPolicy}
+            onCheckedChange={onAcceptSecurityPolicy}
+            label={
+              <span className="flex flex-wrap items-baseline gap-x-1">
+                Li e aceito a
+                <LegalDocumentDialog
+                  document="security"
+                  onOpenChange={(open) => open && onOpenSecurityPolicy()}
+                  trigger={<Button type="button" variant="link" className="h-auto p-0 align-baseline text-sm">Política de Segurança</Button>}
+                />
+              </span>
+            }
+            hint={!openedSecurityPolicy ? "Abra o documento para habilitar este aceite." : undefined}
+          />
+          <ConsentCheckbox
+            id="accept-whatsapp"
+            name="acceptWhatsapp"
+            value={WHATSAPP_CONSENT_VERSION}
+            checked={acceptedWhatsapp}
+            onCheckedChange={onAcceptWhatsapp}
+            icon={<Smartphone className="size-4" />}
+            label="Autorizo o envio de notificações operacionais pelo WhatsApp cadastrado."
+            hint="Inclui atualizações de projetos, tarefas, prazos e novas mensagens. O consentimento poderá ser revogado mediante solicitação ao administrador."
+          />
+        </CardContent>
+      </div>
+    </div>
+  )
+}
+
+function ConsentCheckbox({
+  id,
+  name,
+  value,
+  checked,
+  disabled = false,
+  onCheckedChange,
+  label,
+  hint,
+  icon,
+}: {
+  id: string
+  name: string
+  value: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (accepted: boolean) => void
+  label: React.ReactNode
+  hint?: string
+  icon?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border bg-muted/30 p-4">
+      <Checkbox
+        id={id}
+        name={name}
+        value={value}
+        checked={checked}
+        onCheckedChange={(next) => onCheckedChange(next === true)}
+        disabled={disabled}
+        required
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        className="mt-0.5"
+      />
+      <div className="grid gap-1">
+        <Label htmlFor={id} className="text-sm leading-5">
+          <span className="flex items-start gap-2">{icon}{label}</span>
+        </Label>
+        {hint ? <p id={`${id}-hint`} className="text-xs leading-5 text-muted-foreground">{hint}</p> : null}
+      </div>
+    </div>
   )
 }
 

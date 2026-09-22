@@ -14,7 +14,7 @@ export default function ChangePasswordPage() {
         </span>
         <h2 className="font-heading text-2xl font-semibold tracking-tight">Conclua seu primeiro acesso</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Crie uma senha pessoal, leia e aceite os documentos obrigatórios para continuar.
+          Crie uma senha pessoal para proteger sua conta. Os documentos e consentimentos serão apresentados no onboarding.
         </p>
       </div>
       <ChangePasswordForm />

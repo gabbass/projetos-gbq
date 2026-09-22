@@ -14,6 +14,8 @@ export type AuthUser = {
   terms_version: string | null
   security_policy_accepted_at: Date | null
   security_policy_version: string | null
+  whatsapp_opt_in_at: Date | null
+  whatsapp_opt_in_version: string | null
   onboarding_completed_at: Date | null
   role: UserRole
   area: string
@@ -63,6 +65,8 @@ async function initializeAuth() {
       terms_version text,
       security_policy_accepted_at timestamptz,
       security_policy_version text,
+      whatsapp_opt_in_at timestamptz,
+      whatsapp_opt_in_version text,
       onboarding_completed_at timestamptz DEFAULT now(),
       role text NOT NULL DEFAULT 'admin',
       area text NOT NULL DEFAULT '',
@@ -81,6 +85,8 @@ async function initializeAuth() {
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS terms_version text;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_accepted_at timestamptz;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS security_policy_version text;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS whatsapp_opt_in_at timestamptz;
+    ALTER TABLE app_users ADD COLUMN IF NOT EXISTS whatsapp_opt_in_version text;
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamptz DEFAULT now();
     UPDATE app_users SET onboarding_completed_at = NULL WHERE must_change_password = true;
     UPDATE app_users SET theme = 'light' WHERE theme NOT IN ('light', 'dark');
@@ -144,7 +150,8 @@ export async function findUserByEmail(email: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
     `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            security_policy_accepted_at, security_policy_version, whatsapp_opt_in_at, whatsapp_opt_in_version,
+            onboarding_completed_at,
             role, area, theme, created_at, updated_at
      FROM app_users WHERE lower(email) = lower($1) LIMIT 1`,
     [email],
@@ -157,7 +164,8 @@ export async function findUserById(userId: string) {
   await ensureAuthDatabase()
   const result = await getPool().query<AuthUser>(
     `SELECT id, name, email, phone, password_hash, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            security_policy_accepted_at, security_policy_version, whatsapp_opt_in_at, whatsapp_opt_in_version,
+            onboarding_completed_at,
             role, area, theme, created_at, updated_at
      FROM app_users WHERE id = $1 LIMIT 1`,
     [userId],
@@ -170,7 +178,8 @@ export async function listUsers() {
   await ensureAuthDatabase()
   const result = await getPool().query<Omit<AuthUser, "password_hash">>(
     `SELECT id, name, email, phone, must_change_password, terms_accepted_at, terms_version,
-            security_policy_accepted_at, security_policy_version, onboarding_completed_at,
+            security_policy_accepted_at, security_policy_version, whatsapp_opt_in_at, whatsapp_opt_in_version,
+            onboarding_completed_at,
             role, area, theme, created_at, updated_at
      FROM app_users
      ORDER BY CASE WHEN role = 'admin' THEN 0 ELSE 1 END, lower(name), lower(email)`,
@@ -346,30 +355,33 @@ export async function getBrandingAsset(asset: "logo" | "favicon") {
   return result.rows[0] ?? null
 }
 
-export async function completeFirstAccess(userId: string, passwordHash: string, legalVersion: string) {
+export async function completeFirstAccess(userId: string, passwordHash: string) {
   await ensureAuthDatabase()
   const result = await getPool().query(
     `UPDATE app_users
      SET password_hash = $1,
          must_change_password = false,
-         terms_accepted_at = now(),
-         terms_version = $2,
-         security_policy_accepted_at = now(),
-         security_policy_version = $2,
          updated_at = now()
-     WHERE id = $3 AND must_change_password = true`,
-    [passwordHash, legalVersion, userId],
+     WHERE id = $2 AND must_change_password = true`,
+    [passwordHash, userId],
   )
   if (result.rowCount !== 1) throw new Error("FIRST_ACCESS_ALREADY_COMPLETE")
 }
 
-export async function completeOnboarding(userId: string) {
+export async function completeOnboarding(userId: string, legalVersion: string, whatsappConsentVersion: string) {
   await ensureAuthDatabase()
   const result = await getPool().query(
     `UPDATE app_users
-     SET onboarding_completed_at = COALESCE(onboarding_completed_at, now()), updated_at = now()
+     SET terms_accepted_at = now(),
+         terms_version = $2,
+         security_policy_accepted_at = now(),
+         security_policy_version = $2,
+         whatsapp_opt_in_at = now(),
+         whatsapp_opt_in_version = $3,
+         onboarding_completed_at = COALESCE(onboarding_completed_at, now()),
+         updated_at = now()
      WHERE id = $1 AND must_change_password = false`,
-    [userId],
+    [userId, legalVersion, whatsappConsentVersion],
   )
   if (result.rowCount !== 1) throw new Error("ONBOARDING_NOT_AVAILABLE")
 }

@@ -1,5 +1,7 @@
 export const LEGAL_VERSION = "2026-09-12"
 
+export const WHATSAPP_CONSENT_VERSION = "2026-09-22"
+
 export const COMPANY = {
   tradeName: "GBQ Serviços de TI",
   legalName: "Gabriel Bassotto Quintiliano 44339214833",

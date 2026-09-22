@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 
 import { completeFirstAccess, completeOnboarding, findUserByEmail, findUserById } from "@/lib/auth/database"
 import { hashPassword, verifyPassword } from "@/lib/auth/password"
-import { LEGAL_VERSION } from "@/lib/legal"
+import { LEGAL_VERSION, WHATSAPP_CONSENT_VERSION } from "@/lib/legal"
 import {
   createSessionToken,
   SESSION_COOKIE,
@@ -62,15 +62,10 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
 export async function changePasswordAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const password = String(formData.get("password") ?? "")
   const confirmation = String(formData.get("confirmation") ?? "")
-  const acceptedTerms = String(formData.get("acceptTerms") ?? "")
-  const acceptedSecurityPolicy = String(formData.get("acceptSecurityPolicy") ?? "")
 
   if (password.length < 8) return { error: "A nova senha deve ter pelo menos 8 caracteres." }
   if (password === "12345678") return { error: "Escolha uma senha diferente da senha temporária." }
   if (password !== confirmation) return { error: "As senhas não coincidem." }
-  if (acceptedTerms !== LEGAL_VERSION || acceptedSecurityPolicy !== LEGAL_VERSION) {
-    return { error: "Leia e aceite os Termos de Uso e a Política de Segurança para continuar." }
-  }
 
   const cookieStore = await cookies()
   const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value)
@@ -81,7 +76,7 @@ export async function changePasswordAction(_state: AuthActionState, formData: Fo
     if (user?.phone && password.replace(/\D/g, "") === user.phone && /^[\d\s()+-]+$/.test(password)) {
       return { error: "Escolha uma senha diferente do seu celular de acesso." }
     }
-    await completeFirstAccess(session.userId, await hashPassword(password), LEGAL_VERSION)
+    await completeFirstAccess(session.userId, await hashPassword(password))
     await setSession({
       id: session.userId,
       email: session.email,
@@ -96,14 +91,25 @@ export async function changePasswordAction(_state: AuthActionState, formData: Fo
   }
 }
 
-export async function completeOnboardingAction() {
+export async function completeOnboardingAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  const acceptedTerms = String(formData.get("acceptTerms") ?? "")
+  const acceptedSecurityPolicy = String(formData.get("acceptSecurityPolicy") ?? "")
+  const acceptedWhatsapp = String(formData.get("acceptWhatsapp") ?? "")
+
+  if (acceptedTerms !== LEGAL_VERSION || acceptedSecurityPolicy !== LEGAL_VERSION) {
+    return { error: "Leia e aceite os Termos de Uso e a Política de Segurança para continuar." }
+  }
+  if (acceptedWhatsapp !== WHATSAPP_CONSENT_VERSION) {
+    return { error: "Autorize o recebimento das notificações operacionais pelo WhatsApp para continuar." }
+  }
+
   const cookieStore = await cookies()
   const session = verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value)
   if (!session) redirect("/login")
   if (session.mustChangePassword) redirect("/alterar-senha")
 
   try {
-    await completeOnboarding(session.userId)
+    await completeOnboarding(session.userId, LEGAL_VERSION, WHATSAPP_CONSENT_VERSION)
     await setSession({
       id: session.userId,
       email: session.email,
@@ -114,7 +120,7 @@ export async function completeOnboardingAction() {
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error
     console.error("Falha ao concluir onboarding:", error)
-    redirect("/onboarding?erro=conclusao")
+    return { error: "Não foi possível concluir o onboarding. Tente novamente." }
   }
 }
 
