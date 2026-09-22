@@ -1,9 +1,9 @@
-import type { ProjectNotificationContext, TaskNotificationContext, TaskStatus } from "../projects/database.ts"
+import type { ProjectNotificationContext, ProjectStatus, TaskNotificationContext, TaskStatus } from "../projects/database.ts"
 
 export type NotificationRecipient = { id: string; name: string; phone: string }
 
 export type WorkspaceNotificationEvent = {
-  kind: "task_created" | "task_updated" | "task_status_changed" | "project_updated" | "task_message_created"
+  kind: "task_created" | "task_updated" | "task_status_changed" | "project_updated" | "project_status_changed" | "task_message_created"
   recipient: NotificationRecipient
   actorId: string
   projectId: string
@@ -15,6 +15,7 @@ export type WorkspaceNotificationEvent = {
 }
 
 const statusLabels: Record<TaskStatus, string> = { todo: "A fazer", in_progress: "Em andamento", waiting: "Aguardando", done: "Concluído" }
+const projectStatusLabels: Record<ProjectStatus, string> = { approach: "Abordagem", negotiation: "Negociação", contract: "Contrato", execution: "Execução", validation: "Validação", go_live: "Go Live", finished: "Finalizado" }
 const fieldLabels: Record<string, string> = {
   name: "nome", area: "área", client: "cliente", responsible: "responsável", priority: "prioridade",
   deadline: "prazo", objective: "objetivo", title: "título", description: "descrição", owner: "responsável", dueDate: "prazo",
@@ -64,11 +65,15 @@ export function projectChangedEvent(input: { before: ProjectNotificationContext;
   if (!recipient || recipient.id === input.actorId) return null
   const changes = changedProjectFields(input.before, input.current)
   if (!changes.length) return null
+  const statusChanged = input.before.projectStatus !== input.current.projectStatus
+  const changeSummary = changes.map((field) => field === "status"
+    ? `status geral (${projectStatusLabels[input.before.projectStatus]} → ${projectStatusLabels[input.current.projectStatus]})`
+    : fieldLabels[field] ?? field).join(", ")
   return {
-    kind: "project_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
-    title: `Projeto #${input.current.projectCode} atualizado`, body: `${input.current.projectName}\nAlterações: ${joinLabels(changes)}`,
+    kind: statusChanged ? "project_status_changed" : "project_updated", recipient, actorId: input.actorId, projectId: input.current.projectId,
+    title: statusChanged ? `Nova etapa do projeto #${input.current.projectCode}` : `Projeto #${input.current.projectCode} atualizado`, body: `${input.current.projectName}\nAlterações: ${changeSummary}`,
     templateName: "gbq_projeto_atualizado_v2",
-    templateParameters: templateParameters(input.current.projectCode, input.current.projectName, joinLabels(changes)),
+    templateParameters: templateParameters(input.current.projectCode, input.current.projectName, changeSummary),
     metadata: { projectId: input.current.projectId, projectCode: input.current.projectCode, changes },
   }
 }
@@ -103,6 +108,7 @@ function changedTaskFields(before: TaskNotificationContext, current: TaskNotific
 function changedProjectFields(before: ProjectNotificationContext, current: ProjectNotificationContext) {
   const fields: string[] = []
   if (before.projectName !== current.projectName) fields.push("name")
+  if (before.projectStatus !== current.projectStatus) fields.push("status")
   if (before.area !== current.area) fields.push("area")
   if (before.client?.id !== current.client?.id) fields.push("client")
   if (before.responsible?.id !== current.responsible?.id) fields.push("responsible")

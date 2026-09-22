@@ -4,6 +4,7 @@ import { randomInt } from "node:crypto"
 import { normalizePostgresConnectionString } from "@/lib/database/connection-string"
 
 export type ProjectPriority = "high" | "medium" | "low"
+export type ProjectStatus = "approach" | "negotiation" | "contract" | "execution" | "validation" | "go_live" | "finished"
 export type TaskStatus = "todo" | "in_progress" | "waiting" | "done"
 
 export type Project = {
@@ -18,6 +19,7 @@ export type Project = {
   client_phone: string | null
   responsible_user_id: string | null
   responsible_name: string | null
+  status: ProjectStatus
   priority: ProjectPriority
   deadline: string | null
   objective: string
@@ -73,6 +75,7 @@ export type ProjectNotificationContext = {
   projectCode: string
   projectName: string
   area: string
+  projectStatus: ProjectStatus
   projectPriority: ProjectPriority
   deadline: string | null
   objective: string
@@ -152,6 +155,8 @@ async function initializeProjects() {
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL;
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS responsible_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL;
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS code text;
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'approach'
+      CHECK (status IN ('approach', 'negotiation', 'contract', 'execution', 'validation', 'go_live', 'finished'));
   `)
 
   await pool.query(`
@@ -262,7 +267,7 @@ export async function listProjects(user?: { id: string; role: "admin" | "client"
       GROUP BY task.id
     )
     SELECT p.id, p.code, p.name, p.area, p.owner, p.client_user_id, client.name AS client_name,
-      client.email AS client_email, client.phone AS client_phone, p.responsible_user_id, responsible.name AS responsible_name, p.priority,
+      client.email AS client_email, client.phone AS client_phone, p.responsible_user_id, responsible.name AS responsible_name, p.status, p.priority,
       p.deadline::text AS deadline, p.objective, p.created_at, p.updated_at,
       count(task_progress.id)::int AS task_count,
       count(task_progress.id) FILTER (WHERE task_progress.progress = 1)::int AS completed_count,
@@ -298,6 +303,7 @@ export async function createProject(input: {
   area: string
   clientUserId: string
   responsibleUserId: string
+  status: ProjectStatus
   priority: ProjectPriority
   deadline: string | null
   objective: string
@@ -307,11 +313,11 @@ export async function createProject(input: {
   for (;;) {
     try {
       const result = await getPool().query(
-        `INSERT INTO projects (code, name, area, owner, client_user_id, responsible_user_id, priority, deadline, objective, created_by)
-         SELECT $1, $2, $3, responsible.name, client.id, responsible.id, $6, $7, $8, $9
+        `INSERT INTO projects (code, name, area, owner, client_user_id, responsible_user_id, status, priority, deadline, objective, created_by)
+         SELECT $1, $2, $3, responsible.name, client.id, responsible.id, $6, $7, $8, $9, $10
          FROM app_users client, app_users responsible
          WHERE client.id = $4 AND client.role = 'client' AND responsible.id = $5 AND responsible.role <> 'client'`,
-        [createReadableCode(), input.name, input.area, input.clientUserId, input.responsibleUserId, input.priority, input.deadline, input.objective, input.createdBy],
+        [createReadableCode(), input.name, input.area, input.clientUserId, input.responsibleUserId, input.status, input.priority, input.deadline, input.objective, input.createdBy],
       )
       if (result.rowCount !== 1) throw new Error("INVALID_PROJECT_PARTICIPANTS")
       return
@@ -325,12 +331,12 @@ export async function updateProject(projectId: string, input: Omit<Parameters<ty
   await ensureProjectsDatabase()
   const result = await getPool().query(
     `UPDATE projects p SET name = $1, area = $2, owner = responsible.name,
-      client_user_id = client.id, responsible_user_id = responsible.id, priority = $5, deadline = $6,
-      objective = $7, updated_at = now()
+      client_user_id = client.id, responsible_user_id = responsible.id, status = $5, priority = $6, deadline = $7,
+      objective = $8, updated_at = now()
      FROM app_users client, app_users responsible
-     WHERE p.id = $8 AND client.id = $3 AND client.role = 'client'
+     WHERE p.id = $9 AND client.id = $3 AND client.role = 'client'
        AND responsible.id = $4 AND responsible.role <> 'client'`,
-    [input.name, input.area, input.clientUserId, input.responsibleUserId, input.priority, input.deadline, input.objective, projectId],
+    [input.name, input.area, input.clientUserId, input.responsibleUserId, input.status, input.priority, input.deadline, input.objective, projectId],
   )
   if (result.rowCount === 0) throw new Error("PROJECT_NOT_FOUND")
 }
@@ -434,11 +440,11 @@ export async function updateSubtaskStatus(subtaskId: string, status: TaskStatus)
 export async function getProjectNotificationContext(projectId: string): Promise<ProjectNotificationContext> {
   await ensureProjectsDatabase()
   const result = await getPool().query<{
-    project_id: string; project_code: string; project_name: string; area: string; priority: ProjectPriority; deadline: string | null; objective: string
+    project_id: string; project_code: string; project_name: string; area: string; status: ProjectStatus; priority: ProjectPriority; deadline: string | null; objective: string
     client_id: string | null; client_name: string | null; client_phone: string | null
     responsible_id: string | null; responsible_name: string | null; responsible_phone: string | null
   }>(`
-    SELECT p.id project_id, p.code project_code, p.name project_name, p.area, p.priority,
+    SELECT p.id project_id, p.code project_code, p.name project_name, p.area, p.status, p.priority,
       p.deadline::text deadline, p.objective,
       client.id client_id, client.name client_name, client.phone client_phone,
       responsible.id responsible_id, responsible.name responsible_name, responsible.phone responsible_phone
@@ -454,6 +460,7 @@ export async function getProjectNotificationContext(projectId: string): Promise<
     projectCode: row.project_code,
     projectName: row.project_name,
     area: row.area,
+    projectStatus: row.status,
     projectPriority: row.priority,
     deadline: row.deadline,
     objective: row.objective,
@@ -467,13 +474,13 @@ export async function getTaskNotificationContext(taskId: string): Promise<TaskNo
   const result = await getPool().query<{
     task_id: string; task_code: string; parent_task_id: string | null; task_title: string; description: string; owner: string
     due_date: string | null; status: TaskStatus; task_priority: ProjectPriority
-    project_id: string; project_code: string; project_name: string; area: string; project_priority: ProjectPriority; deadline: string | null; objective: string
+    project_id: string; project_code: string; project_name: string; area: string; project_status: ProjectStatus; project_priority: ProjectPriority; deadline: string | null; objective: string
     client_id: string | null; client_name: string | null; client_phone: string | null
     responsible_id: string | null; responsible_name: string | null; responsible_phone: string | null
   }>(`
     SELECT t.id task_id, t.code task_code, t.parent_task_id, t.title task_title, t.description, t.owner,
       t.due_date::text due_date, t.status, t.priority task_priority,
-      p.id project_id, p.code project_code, p.name project_name, p.area, p.priority project_priority,
+      p.id project_id, p.code project_code, p.name project_name, p.area, p.status project_status, p.priority project_priority,
       p.deadline::text deadline, p.objective,
       client.id client_id, client.name client_name, client.phone client_phone,
       responsible.id responsible_id, responsible.name responsible_name, responsible.phone responsible_phone
@@ -490,6 +497,7 @@ export async function getTaskNotificationContext(taskId: string): Promise<TaskNo
     projectCode: row.project_code,
     projectName: row.project_name,
     area: row.area,
+    projectStatus: row.project_status,
     projectPriority: row.project_priority,
     deadline: row.deadline,
     objective: row.objective,

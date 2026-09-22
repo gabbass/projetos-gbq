@@ -20,6 +20,7 @@ function project(overrides = {}) {
     projectCode: "A3CDEF",
     projectName: "Implantação GBQ",
     area: "Operações",
+    projectStatus: "execution",
     projectPriority: "medium",
     deadline: "2026-10-01",
     objective: "Implantar o sistema",
@@ -81,6 +82,15 @@ test("alteração de projeto informa os campos modificados", () => {
   assert.equal(event?.templateName, "gbq_projeto_atualizado_v2")
   assert.deepEqual(event?.templateParameters, ["A3CDEF", "Implantação GBQ", "prioridade, objetivo"])
   assert.equal(event?.templateParameters.length, 3)
+})
+
+test("mudança do status geral informa a jornada e usa o WhatsApp do cliente", () => {
+  const event = projectChangedEvent({ before: project({ projectStatus: "approach" }), current: project({ projectStatus: "negotiation" }), actorId: "admin-1" })
+  assert.equal(event?.kind, "project_status_changed")
+  assert.equal(event?.recipient.id, client.id)
+  assert.match(event?.body ?? "", /Abordagem → Negociação/)
+  assert.equal(event?.templateName, "gbq_projeto_atualizado_v2")
+  assert.deepEqual(event?.templateParameters, ["A3CDEF", "Implantação GBQ", "status geral (Abordagem → Negociação)"])
 })
 
 test("normaliza celulares brasileiros para o formato internacional do WhatsApp", () => {

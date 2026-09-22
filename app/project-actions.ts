@@ -19,6 +19,7 @@ import {
   updateTask,
   type ChatTargetType,
   type ProjectPriority,
+  type ProjectStatus,
   type TaskStatus,
 } from "@/lib/projects/database"
 import { requireAdministrator, requireCurrentUser } from "@/lib/auth/session"
@@ -34,6 +35,7 @@ import { deliverWorkspaceNotification, workspaceNotificationErrorDetails } from 
 export type ProjectActionState = { status?: "success" | "error"; message?: string }
 
 const priorities = new Set<ProjectPriority>(["high", "medium", "low"])
+const projectStatuses = new Set<ProjectStatus>(["approach", "negotiation", "contract", "execution", "validation", "go_live", "finished"])
 const statuses = new Set<TaskStatus>(["todo", "in_progress", "waiting", "done"])
 const uuidPattern = /^[0-9a-f-]{36}$/i
 const chatTargetTypes = new Set<ChatTargetType>(["project", "task"])
@@ -79,6 +81,7 @@ function projectInput(formData: FormData) {
   const clientUserId = text(formData, "clientUserId", 36)
   const responsibleUserId = text(formData, "responsibleUserId", 36)
   const priority = text(formData, "priority", 10) as ProjectPriority
+  const status = text(formData, "status", 20) as ProjectStatus
   const objective = text(formData, "objective", 1500)
   if (name.length < 2) return { error: "Informe o nome do projeto." } as const
   if (!area) return { error: "Informe a área responsável." } as const
@@ -86,7 +89,8 @@ function projectInput(formData: FormData) {
   if (!uuidPattern.test(responsibleUserId)) return { error: "Selecione o responsável pelo projeto." } as const
   if (clientUserId === responsibleUserId) return { error: "Cliente e responsável devem ser pessoas diferentes." } as const
   if (!priorities.has(priority)) return { error: "Selecione uma prioridade válida." } as const
-  return { value: { name, area, clientUserId, responsibleUserId, priority, deadline: nullableDate(formData, "deadline"), objective } } as const
+  if (!projectStatuses.has(status)) return { error: "Selecione uma etapa válida." } as const
+  return { value: { name, area, clientUserId, responsibleUserId, status, priority, deadline: nullableDate(formData, "deadline"), objective } } as const
 }
 
 function taskInput(formData: FormData) {
