@@ -22,12 +22,42 @@ export type App3Message = {
   createdAt: number
 }
 
-export type App3Template = { id: string; name: string; language: string; status: string; category: string }
+export type App3Template = {
+  id: string
+  name: string
+  language: string
+  status: string
+  category: string
+  components?: App3TemplateComponent[]
+  createdAt?: number
+  updatedAt?: number
+}
+
+export type App3TemplateComponent = {
+  type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS"
+  format?: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "LOCATION"
+  text?: string
+  example?: { header_handle?: string[]; body_text?: string[][]; footer_text?: string[] }
+  buttons?: Array<{ type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER"; text: string; url?: string; phone_number?: string }>
+}
+
 export type App3Page<T> = { data: T[]; nextCursor: string | null }
 export type App3SendResult = { success: true; message: { id: string; providerMessageId: string | null } }
 export type App3TemplateProvisionResult = {
   ready: boolean
   templates: Array<{ name: string; id: string; status: string; created: boolean }>
+}
+
+export type App3TemplateCreateInput = {
+  name: string
+  language: string
+  category: "UTILITY" | "MARKETING" | "AUTHENTICATION"
+  components: App3TemplateComponent[]
+}
+
+export type App3TemplateUpdateInput = {
+  components?: App3TemplateComponent[]
+  status?: string
 }
 
 export type App3MessageReceivedEvent = {

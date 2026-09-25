@@ -1,5 +1,15 @@
 import { app3Fetch } from "@/lib/app3/client"
-import type { App3Conversation, App3Message, App3Page, App3SendResult, App3Template, App3TemplateProvisionResult, App3WhatsappStatus } from "@/lib/app3/types"
+import type {
+  App3Conversation,
+  App3Message,
+  App3Page,
+  App3SendResult,
+  App3Template,
+  App3TemplateProvisionResult,
+  App3TemplateCreateInput,
+  App3TemplateUpdateInput,
+  App3WhatsappStatus,
+} from "@/lib/app3/types"
 
 const API = "/api/integrations/v1/whatsapp"
 
@@ -21,8 +31,24 @@ export function getWhatsappMessages(contactWaId: string, input?: { limit?: numbe
   return app3Fetch<App3Page<App3Message>>(`${API}/conversations/${encodeURIComponent(contactWaId)}/messages?${pageQuery(input)}`)
 }
 
-export function getWhatsappTemplates(cursor?: string) {
-  return app3Fetch<App3Page<App3Template>>(`${API}/templates${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`)
+export function getWhatsappTemplates(input?: { limit?: number; cursor?: string }) {
+  return app3Fetch<App3Page<App3Template>>(`${API}/templates?${pageQuery(input)}`)
+}
+
+export function getWhatsappTemplate(templateId: string) {
+  return app3Fetch<App3Template>(`${API}/templates/${encodeURIComponent(templateId)}`)
+}
+
+export function createWhatsappTemplate(input: App3TemplateCreateInput) {
+  return app3Fetch<App3Template>(`${API}/templates`, jsonPost(input))
+}
+
+export function updateWhatsappTemplate(templateId: string, input: App3TemplateUpdateInput) {
+  return app3Fetch<App3Template>(`${API}/templates/${encodeURIComponent(templateId)}`, jsonPatch(input))
+}
+
+export function deleteWhatsappTemplate(templateId: string) {
+  return app3Fetch<void>(`${API}/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" })
 }
 
 export function sendWhatsappText(input: { to: string; text: string }) {
@@ -47,4 +73,8 @@ export function sendWhatsappMedia(input: { to: string; file: File; caption?: str
 
 function jsonPost(body: unknown): RequestInit {
   return { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
+}
+
+function jsonPatch(body: unknown): RequestInit {
+  return { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
 }
